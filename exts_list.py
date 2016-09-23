@@ -9,33 +9,41 @@ class exts_list(object):
     def __init__(self, file_name, lang):
         self.lang = lang
         self.pkg_dict = {}
- 
-        self.eb = imp.new_module("easyconfig")
 
-        self.code = 'SOURCE_TGZ  = "{%name}{$version}.tgz"'
+        eb = imp.new_module("easyconfig")
+
+        self.code = 'SOURCE_TGZ  = "{%name}{$version}.tgz"\n\
+SOURCE_TAR_GZ = "{%name}{$version}.tar_gz"\n'
+
         with open(file_name, "r") as f:
             self.code += f.read() 
-
         try:
-            exec(self.code, self.eb.__dict__)
+            exec(self.code, eb.__dict__)
         except  Exception, e:
             print "interperting easyconfig error: %s" % (e)
-        self.exts_list = self.eb.exts_list
+        self.exts_orig = eb.exts_list
+
+    def print_code(self):
+        print self.code
         
-    def print_ext_list(self):
-        for pkg in self.exts_list:
-            print "%16s %s" % (pkg[0], pkg[1])
+    def print_exts(self):
+        for pkg in self.exts_orig:
+            if isinstance(pkg, tuple) or isinstance(pkg, list):
+                print "%16s %s" % (pkg[0], pkg[1])
+            else:
+                print pkg
 
 class R(exts_list):
-
-    def __init__(self,filename):
-        exts_list.__init__(self, file_name, 'R')
-
     url_list = "http://crandb.r-pkg.org/"
+
+    def __init__(self, file_name):
+        exts_list.__init__(self,file_name, 'R')
+
     def check_package(self,pkg_name):
         resp=requests.get(url=cran_url+package)
         data=json.loads(resp.text)
         version = [data[u'Version']]
+
 class Python_exts(exts_list):
     
     def __init__(self,file_name):
