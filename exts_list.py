@@ -34,9 +34,6 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         # Add extension if exists
         print "Package:", self.pkg_name
 
-    def print_code(self):
-        print self.code
-
     def update_exts(self):
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
@@ -94,44 +91,6 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                 ptr_head = self.write_to_eol(ptr_head)
                 self.out.write("%s('%s', '%s', ext_options),\n" % (self.indent, new_p[0], new_p[1]))
         self.out.write(self.code[ptr_head:])
-
-    def test_pkg(self,indx, new_p):
-        if new_p[0] == self.exts_orig[indx][0]:
-            if new_p[1] != self.exts_orig[indx][1]:
-                print ">%20s %-15s | %20s %s" % (self.exts_orig[indx][0], self.exts_orig[indx][1],
-                                                 new_p[0], new_p[1])
-            else:
-                print " %20s %-15s | %20s %s" % (self.exts_orig[indx][0], self.exts_orig[indx][1],
-                                                 new_p[0], new_p[1])
-            return True
-        else:
-            return False
-
-    def print_diff(self):
-        i = 0
-        for new_p in self.new_exts:
-            if isinstance(new_p, str):  #remove base libraries
-                i += 1
-                continue
-            if self.test_pkg(i, new_p):
-                if i < len(self.exts_orig):
-                    i += 1
-            elif self.exts_orig[i][0] not in self.new_list:  # remove
-                print "-%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1], '', '')
-                if self.test_pkg(i+1, new_p):
-                    i += 2
-                else:
-                    i += 1  # badness
-            elif self.exts_orig[i][0] in self.new_list and (  # duplicate case
-                new_p[0] in self.exts_orig2[i:]):
-                next_ext = self.exts_orig2[i:].index(new_p[0])
-                for j in range(i,i+next_ext):
-                    print "*%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1],'','')
-                if self.test_pkg(i+1, new_p):
-                    if i+1 < len(self.exts_orig):
-                        i += 2
-            else:  # new package
-                print "+%20s %-15s | %20s %s" % ('', '', new_p[0], new_p[1])
 
 class R(exts_list):
     cran_list = "http://crandb.r-pkg.org/"
