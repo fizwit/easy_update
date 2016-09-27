@@ -24,9 +24,10 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
         except  Exception, e:
             print "interperting easyconfig error: %s" % (e)
         self.exts_orig = eb.exts_list
-
-    def check_package(self, pkg_name):
-        return
+        self.exts_orig2 = [item[0] for item in self.exts_orig]
+        self.pkg_name = eb.name + '-' + eb.version + '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
+        # Add extension if exists
+        print "Package:", self.pkg_name
 
     def print_code(self):
         print self.code
@@ -38,11 +39,15 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
             else:
                 self.new_exts.append(pkg)
 
-    def print_exts(self):
+    def print_update(self):
         """ this needs to be re-written correctly
             use source text as pattern
         """
-        print "exts_list = ["
+        out = open(self.pkg_name + ".update", 'w')
+        ptr_head = 0
+        i = 0
+        for new_p in self.new_exts:
+        indx = self.code.find("exts_list")
         for pkg in self.new_exts:
             if isinstance(pkg, list):
                 print "    ('%s', '%s', ext_optioins)," % (pkg[0], pkg[1])
@@ -66,21 +71,28 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
     def diff_exts(self):
         i = 0
         for new_p in self.new_exts:
-            if isinstance(new_p, str):
+            if isinstance(new_p, str):  #remove base libraries
                 i += 1
                 continue
             if self.test_pkg(i, new_p):
                 if i < len(self.exts_orig):
                     i += 1
-            elif str(self.exts_orig[i][0]) in self.new_list and (
-                new_p[0] == self.exts_orig[i+1][0]):   # duplicate case
-                print "-%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1],'','')
+            elif self.exts_orig[i][0] not in self.new_list:  # remove
+                print "-%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1], '', '')
+                if self.test_pkg(i+1, new_p):
+                    i += 2
+                else:
+                    i += 1  # badness
+            elif self.exts_orig[i][0] in self.new_list and (  # duplicate case
+                new_p[0] in self.exts_orig2[i:]):
+                next_ext = self.exts_orig2[i:].index(new_p[0])
+                for j in range(i,i+next_ext):
+                    print "*%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1],'','')
                 if self.test_pkg(i+1, new_p):
                     if i+1 < len(self.exts_orig):
                         i += 2
-            else:
-                print "+%20s %-15s | %20s %s" % (self.exts_orig[i][0], self.exts_orig[i][1],
-                                                 new_p[0], new_p[1])
+            else:  # new package
+                print "+%20s %-15s | %20s %s" % ('', '', new_p[0], new_p[1])
 
 class R(exts_list):
     cran_list = "http://crandb.r-pkg.org/"
