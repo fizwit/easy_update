@@ -92,8 +92,54 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                 self.out.write("%s('%s', '%s', ext_options),\n" % (self.indent, new_p[0], new_p[1]))
         self.out.write(self.code[ptr_head:])
 
+from HTMLParser import HTMLParser
+
+class TableParser(HTMLParser):
+    def __init__(self, details):
+        HTMLParser.__init__(self)
+        self.in_details = False
+        self.in_td = False
+        self.table_dict = details
+        self.value = ''
+        self.key = ''
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'td':
+            self.in_td = True
+            self.value = ""
+        if tag == 'tr':
+            self.col = 0
+        if tag == 'table':
+            try:
+                if attrs[0][1] == 'details':
+                    self.in_details = True
+            except IndexError:
+                pass
+
+    def handle_data(self, data):
+        if self.in_details and self.in_td:
+            if self.col == 0:
+                self.key = data
+            if self.col == 1:
+                self.value += data
+
+    def handle_endtag(self, tag):
+        if self.in_details and tag == 'td':
+            self.in_td = False
+            if self.col == 1:
+                self.table_dict[self.key] = self.value
+            self.col += 1
+
+        if tag == 'table':
+            self.in_details = False
+
+
+
+import urllib2
+
+
 class R(exts_list):
-    cran_list = "http://crandb.r-pkg.org/"
+
     depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 'stats4','graphics', 'grDevices',
                       'tools', 'tcltk']
 
@@ -101,25 +147,73 @@ class R(exts_list):
         exts_list.__init__(self, file_name, 'R', verbose)
         exts_list.url_list = R.cran_list
 
-    def check_package(self, pkg_name):
-        if pkg_name in self.new_list:
-            return
-        resp = requests.get(url=self.cran_list + pkg_name)
+    def check_CRAN(self,pkg_name):
+        cran_list = "http://crandb.r-pkg.org/"
+        resp = requests.get(url=cran_list + pkg_name)
         cran_info = json.loads(resp.text)
         if 'error' in cran_info and cran_info['error'] == 'not_found':
-            self.exts_remove.append(pkg_name)
-            return
+            return "error", []
         try:
             pkg_ver = cran_info[u'Version']
         except KeyError, e:
             self.exts_remove.append(pkg_name)
-            return
+            return "error", []
+        depends = []
         if u"Depends" in cran_info:
-            for depend in cran_info[u'Depends'].keys():
-                if depend not in self.depend_exclude:
-                    self.check_package(depend)
+            depends = cran_info[u"Depends"].keys()
+        return pkg_ver, depends
+
+
+    def check_package(self, pkg_name):
+        if pkg_name in self.new_list:
+            return
+        pkg_ver, depends = check_CRAN(pkg_name)
+        if pkg_ver == "error":
+            self.exts_remove.append(pkg_name)
+            return
+        for depend in depends:
+            if depend not in self.depend_exclude:
+                self.check_package(depend)
         self.new_exts.append([pkg_name, pkg_ver])
         self.new_list.append(pkg_name)
+        if self.verbose:
+            print "%20s : %s" % (pkg_name, pkg_ver)
+
+class BioC(R):
+    bioc_list = ["http://bioconductor.org/packages/release/bioc/html/",
+                 "http://bioconductor.org/packages/release/data/annotation/html/",
+                 "http://bioconductor.org/packages/release/data/experiment/html/"
+                 ]
+
+    def __init__(self, file_name, verbose=False):
+        exts_list.__init__(self, file_name, 'BioC', verbose)
+        exts_list.url_list = BioC.bioc_list
+
+    def check_package(self, pkg_name):
+        found = False
+        for url in BioC.bioc_list:
+            req = urllib2.Request(url + pkg_name + '.html')
+            try:
+                response = urllib2.urlopen(req)
+                found = True
+                break
+            except (urllib2.HTTPError, urllib2.URLError) as e:
+                error_msg = pkg_name +' Error code: '+ str(e.code)
+        if not found:
+            ver, depends = self.check_CRAN(pkg_name)
+            pkg_ver = str(ver)
+            if pkg_ver == "error":
+                print pkg_name, " Not found!"
+                return
+        else:
+            myhtml = response.read(req)
+            details = {}
+            p = TableParser(details)
+            p.feed(myhtml)
+            p.close()
+            if 'Version' in details:
+                pkg_ver = details['Version']
+
         if self.verbose:
             print "%20s : %s" % (pkg_name, pkg_ver)
 
