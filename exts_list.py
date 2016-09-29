@@ -213,6 +213,8 @@ class BioC(R):
             p.close()
             if 'Version' in details:
                 pkg_ver = details['Version']
+            self.new_exts.append([pkg_name, pkg_ver])
+            self.new_list.append(pkg_name)
 
         if self.verbose:
             print "%20s : %s" % (pkg_name, pkg_ver)
