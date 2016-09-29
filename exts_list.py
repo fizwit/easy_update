@@ -30,7 +30,12 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
 
         self.exts_orig = eb.exts_list
         self.exts_orig2 = [item[0] for item in self.exts_orig]
-        self.pkg_name = eb.name + '-' + eb.version + '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
+        self.pkg_name = eb.name + '-' + eb.version
+        self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
+        try:
+            self.pkg_name += eb.versionsuffix
+        except NameError:
+            pass
         # Add extension if exists
         print "Package:", self.pkg_name
 
