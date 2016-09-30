@@ -42,7 +42,7 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
     def update_exts(self):
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
-                self.check_package(pkg[0])
+                self.check_package(pkg)
             else:
                 self.new_exts.append(pkg)
 
@@ -144,85 +144,76 @@ import urllib2
 
 
 class R(exts_list):
-
     depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 'stats4','graphics', 'grDevices',
                       'tools', 'tcltk']
 
     def __init__(self, file_name, verbose=False):
         exts_list.__init__(self, file_name, 'R', verbose)
-        exts_list.url_list = R.cran_list
 
-    def check_CRAN(self,pkg_name):
+    def check_CRAN(self,pkg):
         cran_list = "http://crandb.r-pkg.org/"
-        resp = requests.get(url=cran_list + pkg_name)
+        resp = requests.get(url=cran_list + pkg[0])
+
         cran_info = json.loads(resp.text)
         if 'error' in cran_info and cran_info['error'] == 'not_found':
-            return "error", []
+            return "not found", []
         try:
             pkg_ver = cran_info[u'Version']
         except KeyError, e:
-            self.exts_remove.append(pkg_name)
+            self.exts_remove.append(pkg[0])
             return "error", []
         depends = []
         if u"Depends" in cran_info:
             depends = cran_info[u"Depends"].keys()
         return pkg_ver, depends
 
-
-    def check_package(self, pkg_name):
-        if pkg_name in self.new_list:
-            return
-        pkg_ver, depends = check_CRAN(pkg_name)
-        if pkg_ver == "error":
-            self.exts_remove.append(pkg_name)
-            return
-        for depend in depends:
-            if depend not in self.depend_exclude:
-                self.check_package(depend)
-        self.new_exts.append([pkg_name, pkg_ver])
-        self.new_list.append(pkg_name)
-        if self.verbose:
-            print "%20s : %s" % (pkg_name, pkg_ver)
-
-class BioC(R):
-    bioc_list = ["http://bioconductor.org/packages/release/bioc/html/",
-                 "http://bioconductor.org/packages/release/data/annotation/html/",
-                 "http://bioconductor.org/packages/release/data/experiment/html/"
-                 ]
-
-    def __init__(self, file_name, verbose=False):
-        exts_list.__init__(self, file_name, 'BioC', verbose)
-        exts_list.url_list = BioC.bioc_list
-
-    def check_package(self, pkg_name):
+    def check_BioC(self, pkg):
+        bioc_url = ['http://bioconductor.org/packages/release/bioc/html/',
+                    'http://bioconductor.org/packages/release/data/annotation/html/',
+                    'http://bioconductor.org/packages/release/data/experiment/html/']
         found = False
-        for url in BioC.bioc_list:
-            req = urllib2.Request(url + pkg_name + '.html')
+        for url in bioc_url:
+            req = urllib2.Request(url + pkg[0] + '.html')
             try:
                 response = urllib2.urlopen(req)
                 found = True
                 break
             except (urllib2.HTTPError, urllib2.URLError) as e:
-                error_msg = pkg_name +' Error code: '+ str(e.code)
+                error_msg = pkg[0] +' Error code: '+ str(e)
         if not found:
-            ver, depends = self.check_CRAN(pkg_name)
-            pkg_ver = str(ver)
-            if pkg_ver == "error":
-                print pkg_name, " Not found!"
-                return
-        else:
-            myhtml = response.read(req)
-            details = {}
-            p = TableParser(details)
-            p.feed(myhtml)
-            p.close()
-            if 'Version' in details:
-                pkg_ver = details['Version']
-            self.new_exts.append([pkg_name, pkg_ver])
-            self.new_list.append(pkg_name)
+            print pkg[0], " Not found at BioCondutor"
+            return "not found", []
+        myhtml = response.read(req)
+        details = {}
+        p = TableParser(details)
+        p.feed(myhtml)
+        p.close()
+        if 'Version' in details:
+            pkg_ver = details['Version']
+        self.new_exts.append([pkg[0], pkg_ver])
+        self.new_list.append(pkg[0])
+        return pkg_ver, []
 
+    def check_package(self, pkg):
+        if pkg[0] in self.new_list:
+            return
+        url = pkg[2]['source_urls'][0]
+        if 'cran' in url:
+            pkg_ver, depends = self.check_CRAN(pkg)
+        elif 'bioconductor' in url:
+            exts_list = 'bioconductor_options'
+            pkg_ver, depends = self.check_BioC(pkg)
+        if pkg_ver == "error" or pkg_ver == 'not found':
+            self.exts_remove.append(pkg[0])
+            print pkg[0], ': ', pkg_ver
+            return
+        for depend in depends:
+            if depend not in self.depend_exclude:
+                self.check_package([depend, '', pkg[2]])
+        self.new_exts.append([pkg[0], pkg_ver])
+        self.new_list.append(pkg[0])
         if self.verbose:
-            print "%20s : %s" % (pkg_name, pkg_ver)
+            print "%20s : %s" % (pkg[0], pkg_ver)
 
 class Python_exts(exts_list):
     def __init__(self, file_name):
