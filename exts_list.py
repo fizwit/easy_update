@@ -3,6 +3,7 @@
 import imp
 import sys
 import json, requests
+import urllib2
 
 
 class exts_list(object):
@@ -36,7 +37,15 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
             self.pkg_name += eb.versionsuffix
         except NameError:
             pass
-        if 'Bioconductor' in eb.name or ''
+        if 'bioconductor' in eb.name.lower():
+                bioc_urls = ['https://bioconductor.org/packages/json/3.3/bioc/packages.json',
+                             'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
+                             'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json']
+                self.bioc_data = []
+                for url in bioc_urls:
+                    response = urllib2.urlopen()
+                    self.bioc_data.append(json.loads(response.read()))
+
         print "Package:", self.pkg_name
 
     def update_exts(self):
@@ -97,52 +106,6 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                 self.out.write("%s('%s', '%s', ext_options),\n" % (self.indent, new_p[0], new_p[1]))
         self.out.write(self.code[ptr_head:])
 
-from HTMLParser import HTMLParser
-
-class TableParser(HTMLParser):
-    def __init__(self, details):
-        HTMLParser.__init__(self)
-        self.in_details = False
-        self.in_td = False
-        self.table_dict = details
-        self.value = ''
-        self.key = ''
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'td':
-            self.in_td = True
-            self.value = ""
-        if tag == 'tr':
-            self.col = 0
-        if tag == 'table':
-            try:
-                if attrs[0][1] == 'details':
-                    self.in_details = True
-            except IndexError:
-                pass
-
-    def handle_data(self, data):
-        if self.in_details and self.in_td:
-            if self.col == 0:
-                self.key = data
-            if self.col == 1:
-                self.value += data
-
-    def handle_endtag(self, tag):
-        if self.in_details and tag == 'td':
-            self.in_td = False
-            if self.col == 1:
-                self.table_dict[self.key] = self.value
-            self.col += 1
-
-        if tag == 'table':
-            self.in_details = False
-
-
-
-import urllib2
-
-
 class R(exts_list):
     depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 'stats4','graphics', 'grDevices',
                       'tools', 'tcltk']
@@ -168,31 +131,19 @@ class R(exts_list):
         return pkg_ver, depends
 
     def check_BioC(self, pkg):
-        bioc_url = ['http://bioconductor.org/packages/release/bioc/html/',
-                    'http://bioconductor.org/packages/release/data/annotation/html/',
-                    'http://bioconductor.org/packages/release/data/experiment/html/']
-        found = False
-        for url in bioc_url:
-            req = urllib2.Request(url + pkg[0] + '.html')
-            try:
-                response = urllib2.urlopen(req)
-                found = True
+        pkg_ver = None
+        for info in self.bioc_data:
+            if pkg[0] in info:
+                pkg_ver = info[pkg[0]['Version']
+                dep_temp = info[pkg[0]['Depends']
                 break
-            except (urllib2.HTTPError, urllib2.URLError) as e:
-                error_msg = pkg[0] +' Error code: '+ str(e)
-        if not found:
+        if not pkg_ver:
             print pkg[0], " Not found at BioCondutor"
             return "not found", []
-        myhtml = response.read(req)
-        details = {}
-        p = TableParser(details)
-        p.feed(myhtml)
-        p.close()
-        if 'Version' in details:
-            pkg_ver = details['Version']
+        depends = [s.split(' ')[0] for s in dep_temp]
         self.new_exts.append([pkg[0], pkg_ver])
         self.new_list.append(pkg[0])
-        return pkg_ver, []
+        return pkg_ver, depends
 
     def check_package(self, pkg):
         if pkg[0] in self.new_list:
