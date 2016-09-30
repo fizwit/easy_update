@@ -36,7 +36,7 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
             self.pkg_name += eb.versionsuffix
         except NameError:
             pass
-        # Add extension if exists
+        if 'Bioconductor' in eb.name or ''
         print "Package:", self.pkg_name
 
     def update_exts(self):
@@ -223,6 +223,8 @@ class BioC(R):
 
         if self.verbose:
             print "%20s : %s" % (pkg_name, pkg_ver)
+
+import xmlrpclib
 
 class Python_exts(exts_list):
     def __init__(self, file_name):
