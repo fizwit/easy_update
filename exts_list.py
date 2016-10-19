@@ -35,15 +35,15 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
         try:
             self.pkg_name += eb.versionsuffix
-        except NameError:
+        except (AttributeError, NameError):
             pass
         if 'bioconductor' in eb.name.lower():
-                bioc_urls = ['https://bioconductor.org/packages/json/3.3/bioc/packages.json',
+                bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
                              'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
-                             'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json']
+                             'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
                 self.bioc_data = []
                 for url in bioc_urls:
-                    response = urllib2.urlopen()
+                    response = urllib2.urlopen(url)
                     self.bioc_data.append(json.loads(response.read()))
 
         print "Package:", self.pkg_name
@@ -79,6 +79,7 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         self.out = open(self.pkg_name + ".update", 'w')
         indx = self.code.find(self.prolog)
         ptr_head = indx + len(self.prolog)
+        exts_cnt = len(self.exts_orig)
         i = 0
         for new_p in self.new_exts:
             indx = self.code[ptr_head:].find(new_p[0])
@@ -86,7 +87,7 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                 i += 1
                 ptr_head = self.write_chunk(ptr_head,indx,len(new_p[0]))
                 continue
-            if new_p[0] == self.exts_orig[i][0]:
+            if i < exts_cnt and new_p[0] == self.exts_orig[i][0]:
                 ptr_head = self.write_chunk(ptr_head, indx, len(new_p[0]))
                 indx = self.code[ptr_head:].find(self.exts_orig[i][1])
                 if new_p[1] == self.exts_orig[i][1]:
@@ -97,7 +98,7 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                     ptr_head += (indx +len(new_p[1]))
                 if i < len(self.exts_orig2):
                     i += 1
-            elif self.exts_orig[i][0] in self.new_list and (  # duplicate case
+            elif i < exts_cnt and self.exts_orig[i][0] in self.new_list and (  # duplicate case
                 new_p[0] in self.exts_orig2[i:]):
                 i += 1
                 ptr_head = self.write_to_eol(ptr_head)
@@ -107,8 +108,8 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         self.out.write(self.code[ptr_head:])
 
 class R(exts_list):
-    depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 'stats4','graphics', 'grDevices',
-                      'tools', 'tcltk']
+    depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
+                      'tools', 'tcltk'}
 
     def __init__(self, file_name, verbose=False):
         exts_list.__init__(self, file_name, 'R', verbose)
@@ -134,8 +135,10 @@ class R(exts_list):
         pkg_ver = None
         for info in self.bioc_data:
             if pkg[0] in info:
-                pkg_ver = info[pkg[0]['Version']
-                dep_temp = info[pkg[0]['Depends']
+                pkg_ver = info[pkg[0]]['Version']
+                dep_temp = []
+                if 'Depends' in info[pkg[0]]:
+                    dep_temp = info[pkg[0]]['Depends']
                 break
         if not pkg_ver:
             print pkg[0], " Not found at BioCondutor"
@@ -172,19 +175,35 @@ class Python_exts(exts_list):
     def __init__(self, file_name):
         exts_list.__init__(self, file_name, 'Python')
 
+    def parse_pypi_requires(self,requires):
+         if ';' in requires:
+             name = requires.split(';')[0]
+         elif '(' in requires:
+             name = requires.split('(')[0]
+         else:
+             name = requires
+
     def check_package(self, pkg_name):
-        if pkg_name in self.pkg_dict:
+        if pkg_name in self.new_list:
             return []
         client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
-        xml_vers = client.package_releases(package)
+        xml_vers = client.package_releases(pkg_name)
         if xml_vers:
-            self.pkg_dict[package] = [xml_vers[0]]
-            xml_info = client.release_data(package, xml_vers[0])
+            self.pkg_dict[pkg_name] = [xml_vers[0]]
+            xml_info = client.release_data(pkg_name, xml_vers[0])
             if 'requires_dist' in xml_info:
-                req = parse_pypi_requires(xml_info['requires_dist'])
-                if req:
-                    py_dict[package].append(req)
+                for requires in xml_info['requires_dist']:
+                    req_pkg = self.parse_pypi_requires(requires)
+                    self.new_list[pkg_name].append(req_pkg)
                     # print("requires_dist:",req)
         else:
-            print("Warning: could not find Python package:", package)
-            py_dict[package] = []
+            print("Warning: could not find Python package:", pkg_name)
+
+if __name__ == '__main__':
+    #r = R('R-3.3.1-test.eb', verbose=True)
+    #r.update_exts()
+    #r.print_update()
+
+    r = R('R-bundle-Bioconductor-3.3-foss-2016b-R-3.3.1-fh1.eb', verbose=True)
+    r.update_exts()
+    r.print_update()
