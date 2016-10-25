@@ -14,7 +14,8 @@ class exts_list(object):
 
         self.new_exts = []
         self.exts_remove = []
-        self.new_list = [] #single list of package names
+        self.exts_processed = [] #single list of package names
+        self.exts_dict = {}  # 'action'
         self.prolog = '## remove ##\n'
         self.indent = ' ' * self.indent_n
         eb = imp.new_module("easyconfig")
@@ -30,7 +31,8 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
             print "interperting easyconfig error: %s" % (e)
 
         self.exts_orig = eb.exts_list
-        self.exts_orig2 = [item[0] for item in self.exts_orig]
+        for item in self.exts_orig:
+            self.exts_dict[item[0]] = {}
         self.pkg_name = eb.name + '-' + eb.version
         self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
         try:
@@ -38,19 +40,24 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         except (AttributeError, NameError):
             pass
         if 'bioconductor' in eb.name.lower():
-                bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
-                             'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
-                             'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
-                self.bioc_data = []
-                for url in bioc_urls:
-                    response = urllib2.urlopen(url)
-                    self.bioc_data.append(json.loads(response.read()))
+            self.bioconductor = True
+            bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
+                        'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
+                        'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
+            self.bioc_data = []
+            for url in bioc_urls:
+                response = urllib2.urlopen(url)
+                self.bioc_data.append(json.loads(response.read()))
+        else:
+            self.biocondutor = False
+
 
         print "Package:", self.pkg_name
 
     def update_exts(self):
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
+                self.pkg_top = pkg[0]
                 self.check_package(pkg)
             else:
                 self.new_exts.append(pkg)
@@ -87,24 +94,31 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
                 i += 1
                 ptr_head = self.write_chunk(ptr_head,indx,len(new_p[0]))
                 continue
-            if i < exts_cnt and new_p[0] == self.exts_orig[i][0]:
+            if i < exts_cnt and new_p[0] == self.exts_orig[i][0]:  # adds stuff to bottom
                 ptr_head = self.write_chunk(ptr_head, indx, len(new_p[0]))
                 indx = self.code[ptr_head:].find(self.exts_orig[i][1])
-                if new_p[1] == self.exts_orig[i][1]:
+                if self.exts_dict[new_p[0]]['action'] == 'keep':
                     ptr_head = self.write_chunk(ptr_head,indx,len(self.exts_orig[i][1]))
                 else:
                     self.out.write(self.code[ptr_head:ptr_head + indx])
                     self.out.write(new_p[1])
                     ptr_head += (indx +len(new_p[1]))
-                if i < len(self.exts_orig2):
+                if i < len(self.exts_orig):
                     i += 1
-            elif i < exts_cnt and self.exts_orig[i][0] in self.new_list and (  # duplicate case
-                new_p[0] in self.exts_orig2[i:]):
+            elif i < exts_cnt and self.exts_orig[i][0] in self.exts_processed and (  # duplicate case
+                new_p[0] in self.exts_orig[i:]):
                 i += 1
                 ptr_head = self.write_to_eol(ptr_head)
             else: # new package
                 ptr_head = self.write_to_eol(ptr_head)
-                self.out.write("%s('%s', '%s', ext_options),\n" % (self.indent, new_p[0], new_p[1]))
+                if self.exts_dict[new_p[0]]['action'] == 'new':
+                    if self.exts_dict[new_p[0]]['source'] == 'cran':
+                        options = 'ext_option'
+                    else:
+                        options = 'bioconductor_options'
+                else:
+                    options = 'new'
+                self.out.write("%s('%s', '%s', %s),\n" % (self.indent, new_p[0], new_p[1], options))
         self.out.write(self.code[ptr_head:])
 
 class R(exts_list):
@@ -145,29 +159,50 @@ class R(exts_list):
             return "not found", []
         depends = [s.split(' ')[0] for s in dep_temp]
         self.new_exts.append([pkg[0], pkg_ver])
-        self.new_list.append(pkg[0])
+        self.exts_processed.append(pkg[0])
         return pkg_ver, depends
 
     def check_package(self, pkg):
-        if pkg[0] in self.new_list:
+        if pkg[0] in self.exts_processed:  # remove dupicates
             return
-        url = pkg[2]['source_urls'][0]
-        if 'cran' in url:
-            pkg_ver, depends = self.check_CRAN(pkg)
-        elif 'bioconductor' in url:
+        if self.bioconductor:
             exts_list = 'bioconductor_options'
             pkg_ver, depends = self.check_BioC(pkg)
+            source = 'bioconductor'
+            if pkg_ver == 'not found':
+                pkg_ver, depends = self.check_CRAN(pkg)
+                source = 'cran'
+        else:
+            pkg_ver, depends = self.check_CRAN(pkg)
+            source = 'cran'
+
         if pkg_ver == "error" or pkg_ver == 'not found':
-            self.exts_remove.append(pkg[0])
-            print pkg[0], ': ', pkg_ver
+            if pkg[0] == self.pkg_top:
+                self.exts_dict[pkg[0]]['action'] = 'remove'
             return
+
+        if pkg[0] == self.pkg_top:
+            if pkg[1] == pkg_ver:
+                self.exts_dict[pkg[0]]['action'] = 'keep'
+            else:
+                self.exts_dict[pkg[0]]['action'] = 'update'
+        else:
+            self.exts_dict[pkg[0]] = {}
+            self.exts_dict[pkg[0]]['action'] = 'new'
+            self.exts_dict[pkg[0]]['source'] = source
+
         for depend in depends:
             if depend not in self.depend_exclude:
-                self.check_package([depend, '', pkg[2]])
+                self.check_package([depend, ''])
         self.new_exts.append([pkg[0], pkg_ver])
-        self.new_list.append(pkg[0])
+        self.exts_processed.append(pkg[0])
         if self.verbose:
-            print "%20s : %s" % (pkg[0], pkg_ver)
+            if self.exts_dict[pkg[0]]['action'] == 'new':
+                print "%20s : %-8s (%s-%s)" % (pkg[0], pkg_ver, self.exts_dict[pkg[0]]['action'],
+                                                self.exts_dict[pkg[0]]['source'])
+            else:
+                print "%20s : %-8s (%s)" % (pkg[0], pkg_ver, self.exts_dict[pkg[0]]['action'])
+
 
 import xmlrpclib
 
@@ -184,7 +219,7 @@ class Python_exts(exts_list):
              name = requires
 
     def check_package(self, pkg_name):
-        if pkg_name in self.new_list:
+        if pkg_name in self.exts_processed:
             return []
         client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
         xml_vers = client.package_releases(pkg_name)
@@ -194,7 +229,7 @@ class Python_exts(exts_list):
             if 'requires_dist' in xml_info:
                 for requires in xml_info['requires_dist']:
                     req_pkg = self.parse_pypi_requires(requires)
-                    self.new_list[pkg_name].append(req_pkg)
+                    self.exts_processed[pkg_name].append(req_pkg)
                     # print("requires_dist:",req)
         else:
             print("Warning: could not find Python package:", pkg_name)
