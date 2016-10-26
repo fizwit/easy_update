@@ -21,8 +21,10 @@ class exts_list(object):
         self.indent = ' ' * self.indent_n
         eb = imp.new_module("easyconfig")
 
-        self.code = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n\
-SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
+        self.code = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
+        self.code += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
+        self.code += self.prolog
+        self.head_ptr = len(self.code)
 
         with open(file_name, "r") as f:
             self.code += f.read()
