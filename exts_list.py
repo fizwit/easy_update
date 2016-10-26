@@ -5,6 +5,10 @@ import sys
 import json, requests
 import urllib2
 
+"""
+R-bundle-Bioconductor-3.3-foss-2016b-R-%(rver)s-fh1.update
+R-bundle-Bioconductor-3.3-foss-2016b-R-3.3.1-fh1.eb
+"""
 
 class exts_list(object):
     def __init__(self, file_name, lang, verbose=False):
@@ -21,8 +25,12 @@ class exts_list(object):
         self.indent = ' ' * self.indent_n
         eb = imp.new_module("easyconfig")
 
-        self.code = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n\
-SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
+        """ interpreting easyconfig files fail due to missing constants that are not defined within the
+            easyconfig file.  Add undefined constants here. """
+        header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
+        header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
+        header += self.prolog
+        self.code = header
 
         with open(file_name, "r") as f:
             self.code += f.read()
@@ -76,57 +84,73 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
         else:
             return False
 
-    def write_to_eol(self,ptr_head):
-        indx = self.code[ptr_head:].find('\n')
+    def write_to_eor(self,ptr_head):
+        indx = self.code[ptr_head:].find('),\n')
         ptr_tail = ptr_head + indx + 1
         self.out.write(self.code[ptr_head:ptr_tail])
         return ptr_tail
+
+    def skip_extension(self,indx, ptr_head):
+        """ indx points to head of extension name; ASUME: exts_list entry ends with '),\n'
+        """
+        back = self.code.rfind('),\n',0,indx) + 3
+        self.out.write(self.code[ptr_head:back]+'<-')
+        return self.code[indx:].find('),\n') + indx + 3
 
     def write_chunk(self,ptr_head, indx, obj_len):
         ptr_tail = ptr_head + indx + obj_len
         self.out.write(self.code[ptr_head:ptr_tail])
         return ptr_tail
 
+    def source_url(self, pkg_name):
+        """ determin which source_url should be used for a "new" module. """
+        if self.exts_dict[pkg_name]['source'] == 'cran':
+            options = 'ext_option'
+        elif self.exts_dict[pkg_name]['source'] == 'biocondutor':
+            options = 'bioconductor_options'
+        elif self.exts_dict[pkg_name]['source'] == 'pypi':
+            options = "{'source_urls': ['https://pypi.python.org/packages/source/%s/%s/']}" % (
+                pkg_name[:1], pkg_name)
+        else:
+            options = "{'source_urls': ['unknow']}"
+        return options
+
     def print_update(self):
         """ this needs to be re-written correctly
             use source text as pattern
         """
         self.out = open(self.pkg_name + ".update", 'w')
-        indx = self.code.find(self.prolog)
-        ptr_head = indx + len(self.prolog)
-        exts_cnt = len(self.exts_orig)
-        i = 0
+        ptr_head = self.code.find(self.prolog) + len(self.prolog)
+        indx = self.code.find('exts_list')
+        ptr_head = self.write_chunk(ptr_head, indx, len('exts_list'))
+        return
         for new_p in self.new_exts:
-            indx = self.code[ptr_head:].find(new_p[0])
             if isinstance(new_p, str):  # base library with no version
-                i += 1
                 ptr_head = self.write_chunk(ptr_head,indx,len(new_p[0]))
                 continue
-            if i < exts_cnt and new_p[0] == self.exts_orig[i][0]:  # adds stuff to bottom
+            print "processing: ", new_p[0]
+            action = self.exts_dict[new_p[0]]['action']
+            if action == 'keep' or action == 'update':
+                indx = self.code[ptr_head:].find(new_p[0])
                 ptr_head = self.write_chunk(ptr_head, indx, len(new_p[0]))
-                indx = self.code[ptr_head:].find(self.exts_orig[i][1])
-                if self.exts_dict[new_p[0]]['action'] == 'keep':
-                    ptr_head = self.write_chunk(ptr_head,indx,len(self.exts_orig[i][1]))
-                else:
+                indx = self.code[ptr_head:].find(new_p[1])
+                if self.exts_dict[new_p[0]]['action'] == 'update':
                     self.out.write(self.code[ptr_head:ptr_head + indx])
                     self.out.write(new_p[1])
                     ptr_head += (indx +len(new_p[1]))
-                if i < len(self.exts_orig):
-                    i += 1
-            elif i < exts_cnt and self.exts_orig[i][0] in self.exts_processed and (  # duplicate case
-                new_p[0] in self.exts_orig[i:]):
-                i += 1
-                ptr_head = self.write_to_eol(ptr_head)
-            else: # new package
-                ptr_head = self.write_to_eol(ptr_head)
-                if self.exts_dict[new_p[0]]['action'] == 'new':
-                    if self.exts_dict[new_p[0]]['source'] == 'cran':
-                        options = 'ext_option'
-                    else:
-                        options = 'bioconductor_options'
+            elif action == 'duplicate':
+                indx = self.code[ptr_head:].find(new_p[0])
+                ptr_head = self.skip_extension(indx,ptr_head)
+                print "Duplicate: ", new_p[0]
+            elif action == 'new':
+                ptr_head = self.write_to_eor(ptr_head)
+                options = self.source_url(new_p[0])
+                if self.bioconductor and self.exts_dict[new_p[0]]['source'] == 'cran':
+                    print "CRAN depencancy: " + new_p[0]
                 else:
-                    options = 'new'
-                self.out.write("%s('%s', '%s', %s),\n" % (self.indent, new_p[0], new_p[1], options))
+                    extension = "%s('%s', '%s', %s),\n" % (self.indent, new_p[0], new_p[1], options)
+                    self.out.write(extension)
+                    ptr_head += len(extension)
         self.out.write(self.code[ptr_head:])
 
 class R(exts_list):
@@ -165,15 +189,13 @@ class R(exts_list):
                     dep_temp = info[pkg[0]]['Depends']
                 break
         if not pkg_ver:
-            print pkg[0], " Not found at BioCondutor"
             return "not found", []
         depends = [s.split(' ')[0] for s in dep_temp]
-        self.new_exts.append([pkg[0], pkg_ver])
-        self.exts_processed.append(pkg[0])
         return pkg_ver, depends
 
     def check_package(self, pkg):
         if pkg[0] in self.exts_processed:  # remove dupicates
+            self.exts_dict[pkg[0]]['action'] = 'duplicate'
             return
         if self.bioconductor:
             exts_list = 'bioconductor_options'

@@ -2,7 +2,7 @@ easyblock = 'Bundle'
 
 name = 'R-bundle-Bioconductor'
 version = '3.3'
-versionsuffix = '-R-%(rver)s-fh1'
+versionsuffix = '-R-3.3.1-fh1'
 
 homepage = 'http://www.r-project.org/'
 description = """R is a free software environment for statistical computing and graphics."""
@@ -40,6 +40,7 @@ exts_filter = ("R -q --no-save", "library(%(ext_name)s)")
 exts_list = [
     ('BiocGenerics', '0.18.0', bioconductor_options),
     ('Biobase', '2.32.0', bioconductor_options),
+    ('Biobase', '2.31.0', bioconductor_options),
     ('S4Vectors', '0.10.3', bioconductor_options),
     ('IRanges', '2.6.1', bioconductor_options),
     ('GenomeInfoDb', '1.8.7', bioconductor_options),
