@@ -8,6 +8,7 @@ import urllib2
 
 class exts_list(object):
     def __init__(self, file_name, lang, verbose=False):
+        self.debug = True
         self.lang = lang
         self.verbose = verbose
         self.indent_n = 4
@@ -39,20 +40,27 @@ SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n' + self.prolog
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
+        print "Package:", self.pkg_name
+
         if 'bioconductor' in eb.name.lower():
             self.bioconductor = True
-            bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
-                        'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
-                        'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
             self.bioc_data = []
-            for url in bioc_urls:
-                response = urllib2.urlopen(url)
-                self.bioc_data.append(json.loads(response.read()))
-        else:
-            self.biocondutor = False
+            if self.debug:
+                bioc_files = ['packages.json', 'annotation.json', 'experiment.json']
+                for file in bioc_files:
+                    json_data = open(file).read()
+                    self.bioc_data.append(json.loads(json_data))
+            else:
+                bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
+                            'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
+                            'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
+                self.bioc_data = []
+                for url in bioc_urls:
+                    response = urllib2.urlopen(url)
+                    self.bioc_data.append(json.loads(response.read()))
 
 
-        print "Package:", self.pkg_name
+
 
     def update_exts(self):
         for pkg in self.exts_orig:
@@ -129,6 +137,8 @@ class R(exts_list):
         exts_list.__init__(self, file_name, 'R', verbose)
 
     def check_CRAN(self,pkg):
+        if self.debug:
+            return pkg[1], []
         cran_list = "http://crandb.r-pkg.org/"
         resp = requests.get(url=cran_list + pkg[0])
 
