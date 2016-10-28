@@ -5,6 +5,8 @@ import imp
 import json
 import requests
 import urllib2
+import xmlrpclib
+
 
 class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild easyconfig files for R and Python.
@@ -12,6 +14,7 @@ class ExtsList(object):
      the updating of extension lists for R and Python.
 
     """
+
     def __init__(self, file_name, lang, verbose=False):
         self.offline = True
         self.lang = lang
@@ -50,6 +53,7 @@ class ExtsList(object):
         except (AttributeError, NameError):
             pass
         print "Package:", self.pkg_name
+        self.out = open(self.pkg_name + ".update", 'w')
 
         if 'bioconductor' in eb.name.lower():
             self.bioconductor = True
@@ -83,32 +87,30 @@ class ExtsList(object):
         self.ptr_head = indx
 
     def rewriteExtension(self, pkg):
-        indx = self.code[self.ptr_head:].find(pkg[0]) + self.ptr_head + len(pkg[0]) + 1 # parse to package name
-        indx = self.code[indx:].find("'") + indx + 1    # beginning quote of version
+        indx = self.code[self.ptr_head:].find(pkg[0]) + self.ptr_head + len(pkg[0]) + 1  # parse to package name
+        indx = self.code[indx:].find("'") + indx + 1  # beginning quote of version
         self.write_chunk(indx)
-        self.out.write("%s'," % pkg[1])    # write version Number
+        self.out.write("%s'," % pkg[1])  # write version Number
         self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
-        indx = self.code[self.ptr_head:].find(',') + self.ptr_head + 2   # find end of extension
+        indx = self.code[self.ptr_head:].find(',') + self.ptr_head + 2  # find end of extension
         self.write_chunk(indx)
 
     def print_update(self):
         """ this needs to be re-written correctly
             use source text as pattern
         """
-        self.out = open(self.pkg_name + ".update", 'w')
         indx = self.code.find('exts_list') + len('exts_list')
         self.write_chunk(indx)
 
         for extension in self.new_exts:
             if isinstance(extension, str):  # base library with no version
-                indx = self.code[self.ptr_head:].find(extension)
-                indx +=  (self.ptr_head + len(extension) + 2)
-                self.ptr_head = self.write_chunk(indx)
+                indx = self.code[self.ptr_head:].find(extension) + self.ptr_head + len(extension) + 2
+                self.write_chunk(indx)
                 continue
             action = extension.pop()
             if action == 'keep' or action == 'update':
                 self.rewriteExtension(extension)
-                #sys.exit(0)
+                # sys.exit(0)
             elif action == 'duplicate':
                 self.ptr_head = self.code[self.ptr_head:].find(extension[0]) + len(extension[0])
                 continue
@@ -141,7 +143,7 @@ class R(ExtsList):
             return "not found", []
         try:
             pkg_ver = cran_info[u'Version']
-        except KeyError, e:
+        except KeyError:
             self.exts_remove.append(pkg[0])
             return "error", []
         depends = []
@@ -156,7 +158,6 @@ class R(ExtsList):
         depends = []
         if pkg[0] in self.bioc_data:
             pkg_ver = self.bioc_data[pkg[0]]['Version']
-            dep_temp = []
             if 'Depends' in self.bioc_data[pkg[0]]:
                 depends = [s.split(' ')[0] for s in self.bioc_data[pkg[0]]['Depends']]
         else:
@@ -199,17 +200,15 @@ class R(ExtsList):
         self.exts_processed.append(pkg[0])
         if self.verbose:
             if 'new' == pkg[-1]:
-                print "%20s : %-8s (%s-%s)" % (pkg[0], pkg[1], pkg[-1],pkg[2])
+                print "%20s : %-8s (%s-%s)" % (pkg[0], pkg[1], pkg[-1], pkg[2])
             else:
                 print "%20s : %-8s (%s)" % (pkg[0], pkg[1], pkg[-1])
 
 
-import xmlrpclib
-
-
-class Python_exts(ExtsList):
-    def __init__(self, file_name):
+class PythonExts(ExtsList):
+    def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, 'Python')
+        self.verbose = verbose
         self.pkg_dict = None
 
     def parse_pypi_requires(self, requires):
@@ -219,6 +218,7 @@ class Python_exts(ExtsList):
             name = requires.split('(')[0]
         else:
             name = requires
+        return name
 
     def check_package(self, pkg_name):
         if pkg_name in self.exts_processed:
@@ -243,9 +243,9 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if sys.argv[1][:2] == 'R-':
-        module  = R(sys.argv[1], verbose=True)
+        module = R(sys.argv[1], verbose=True)
     elif sys.argv[1][:7] == 'Python-':
-        module  = Python_exts(sys.argv[1], verbose=True)
+        module = PythonExts(sys.argv[1], verbose=True)
     else:
         print "Module name must begin with R- or Python-"
         sys.exit(1)
