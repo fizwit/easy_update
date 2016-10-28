@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
-
-
+import sys
 import imp
 import json
 import requests
 import urllib2
-
 
 class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild easyconfig files for R and Python.
@@ -69,6 +67,8 @@ class ExtsList(object):
                 for url in bioc_urls:
                     response = urllib2.urlopen(url)
                     self.bioc_data.update(json.loads(response.read()))
+        else:
+            self.bioconductor = False
 
     def update_exts(self):
         for pkg in self.exts_orig:
@@ -78,18 +78,18 @@ class ExtsList(object):
             else:
                 self.new_exts.append(pkg)
 
+    def write_chunk(self, indx):
+        self.out.write(self.code[self.ptr_head:indx])
+        self.ptr_head = indx
+
     def rewriteExtension(self, pkg):
-        indx = self.code[self.ptr_head:].find(pkg[0])+ self.ptr_head + len(pkg[0]) + 1 # parse to package name
+        indx = self.code[self.ptr_head:].find(pkg[0]) + self.ptr_head + len(pkg[0]) + 1 # parse to package name
         indx = self.code[indx:].find("'") + indx + 1    # beginning quote of version
         self.write_chunk(indx)
         self.out.write("%s'," % pkg[1])    # write version Number
         self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
         indx = self.code[self.ptr_head:].find(',') + self.ptr_head + 2   # find end of extension
         self.write_chunk(indx)
-
-    def write_chunk(self, indx):
-        self.out.write(self.code[self.ptr_head:indx])
-        self.ptr_head = indx
 
     def print_update(self):
         """ this needs to be re-written correctly
@@ -101,10 +101,11 @@ class ExtsList(object):
 
         for extension in self.new_exts:
             if isinstance(extension, str):  # base library with no version
-                self.ptr_head = self.write_chunk(indx, len(extension[0]))
+                indx = self.code[self.ptr_head:].find(extension)
+                indx +=  (self.ptr_head + len(extension) + 2)
+                self.ptr_head = self.write_chunk(indx)
                 continue
             action = extension.pop()
-            print "processing: " + extension[0] + " - " + action
             if action == 'keep' or action == 'update':
                 self.rewriteExtension(extension)
                 #sys.exit(0)
@@ -237,10 +238,16 @@ class Python_exts(ExtsList):
 
 
 if __name__ == '__main__':
-    #r = R('R-bundle-Bioconductor-3.3-foss-2016b-R-3.3.1-fh1.eb', verbose=True)
-    #r.update_exts()
-    #r.print_update()
+    if len(sys.argv) != 2:
+        print "usage: %s [R or Python easybuild file]" % sys.argv[0]
+        sys.exit(0)
 
-    r = Python_exts('R-3.3.1-foss-2016b.eb')
-    r.update_exts()
-    r.print_update()
+    if sys.argv[1][:2] == 'R-':
+        module  = R(sys.argv[1], verbose=True)
+    elif sys.argv[1][:7] == 'Python-':
+        module  = Python_exts(sys.argv[1], verbose=True)
+    else:
+        print "Module name must begin with R- or Python-"
+        sys.exit(1)
+    module.update_exts()
+    module.print_update()
