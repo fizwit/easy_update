@@ -16,10 +16,12 @@ class ExtsList(object):
     """
 
     def __init__(self, file_name, lang, verbose=False):
-        self.offline = True
+        self.offline = False 
         self.lang = lang
         self.verbose = verbose
         self.indent_n = 4
+        self.pkg_count = 0 
+        self.pkg_update = 0 
 
         self.new_exts = []
         self.exts_remove = []
@@ -75,12 +77,15 @@ class ExtsList(object):
             self.bioconductor = False
 
     def update_exts(self):
+        self.pkg_count = len(self.exts_orig)
+        i=1
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
                 self.pkg_top = pkg[0]
-                self.check_package(list(pkg))
+                self.check_package(list(pkg),i)
             else:
                 self.new_exts.append(pkg)
+            i += 1
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -120,14 +125,15 @@ class ExtsList(object):
                 else:
                     self.out.write("%s('%s', '%s', %s),\n" % (self.indent, extension[0], extension[1], extension[2]))
         self.out.write(self.code[self.ptr_head:])
+        print "Updated Packages: %d" % self.pkg_update
 
-    def check_package(self, pkg):
+    def check_package(self, pkg, counter):
         pass
 
 
 class R(ExtsList):
     depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
-                      'tools', 'tcltk'}
+                      'tools', 'tcltk', 'grid', 'splines'}
 
     def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, 'R', verbose)
@@ -164,7 +170,7 @@ class R(ExtsList):
             pkg_ver = "not found"
         return pkg_ver, depends
 
-    def check_package(self, pkg):
+    def check_package(self, pkg, counter):
         if pkg[0] in self.exts_processed:  # remove dupicates
             if pkg[0] == self.pkg_top:
                 pkg.append('duplicate')
@@ -181,6 +187,7 @@ class R(ExtsList):
 
         if pkg_ver == "error" or pkg_ver == 'not found':
             if pkg[0] == self.pkg_top:
+                print pkg[0], "remove"
                 pkg.append('remove')
             return
 
@@ -190,19 +197,20 @@ class R(ExtsList):
             else:
                 pkg[1] = pkg_ver
                 pkg.append('update')
+                self.pkg_update +=1
         else:
             pkg.append('new')
 
         for depend in depends:
             if depend not in self.depend_exclude:
-                self.check_package([depend, "x", "source_url"])
+                self.check_package([depend, "x", "source_url"], counter)
         self.new_exts.append(pkg)
         self.exts_processed.append(pkg[0])
         if self.verbose:
             if 'new' == pkg[-1]:
-                print "%20s : %-8s (%s-%s)" % (pkg[0], pkg[1], pkg[-1], pkg[2])
+                print "%20s : %-8s (%s-%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], pkg[2], counter, self.pkg_count)
             else:
-                print "%20s : %-8s (%s)" % (pkg[0], pkg[1], pkg[-1])
+                print "%20s : %-8s (%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], counter, self.pkg_count)
 
 
 class PythonExts(ExtsList):
