@@ -22,6 +22,7 @@ class ExtsList(object):
         self.indent_n = 4
         self.pkg_count = 0 
         self.pkg_update = 0 
+        self.pkg_new = 0 
 
         self.new_exts = []
         self.exts_remove = []
@@ -126,6 +127,7 @@ class ExtsList(object):
                     self.out.write("%s('%s', '%s', %s),\n" % (self.indent, extension[0], extension[1], extension[2]))
         self.out.write(self.code[self.ptr_head:])
         print "Updated Packages: %d" % self.pkg_update
+        print "New Packages: %d" % self.pkg_new
 
     def check_package(self, pkg, counter):
         pass
@@ -153,8 +155,12 @@ class R(ExtsList):
             self.exts_remove.append(pkg[0])
             return "error", []
         depends = []
+        if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
+            return 'base package', [] 
         if u"Depends" in cran_info:
             depends = cran_info[u"Depends"].keys()
+        if u"Imports" in cran_info:
+           depends += cran_info[u"Imports"].keys() 
         return pkg_ver, depends
 
     def check_BioC(self, pkg):
@@ -199,7 +205,9 @@ class R(ExtsList):
                 pkg.append('update')
                 self.pkg_update +=1
         else:
+            pkg[1] = pkg_ver
             pkg.append('new')
+            self.pkg_new +=1
 
         for depend in depends:
             if depend not in self.depend_exclude:
