@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import sys
 import imp
 import json
@@ -16,7 +17,6 @@ class ExtsList(object):
     """
 
     def __init__(self, file_name, lang, verbose=False):
-        self.offline = False 
         self.lang = lang
         self.verbose = verbose
         self.indent_n = 4
@@ -28,27 +28,14 @@ class ExtsList(object):
         self.exts_remove = []
         self.exts_processed = []  # single list of package names
         self.prolog = '## remove ##\n'
+        self.ptr_head = 0 
         self.indent = ' ' * self.indent_n
         self.pkg_top = None
-        eb = imp.new_module("easyconfig")
-
-        """ interpreting easyconfig files fail due to missing constants that are not defined within the
-            easyconfig file.  Add undefined constants here.
-        """
-        header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
-        header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
-        header += self.prolog
-        self.ptr_head = len(header)
-        self.code = header
-
-        with open(file_name, "r") as f:
-            self.code += f.read()
-        try:
-            exec (self.code, eb.__dict__)
-        except Exception, e:
-            print "interperting easyconfig error: %s" % e
-
+        
+        eb = self.parse_eb(file_name, primary=True)
         self.exts_orig = eb.exts_list
+        self.toolchain = eb.toolchain
+        self.dependencies = eb.dependencies
         self.pkg_name = eb.name + '-' + eb.version
         self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
         try:
@@ -56,26 +43,31 @@ class ExtsList(object):
         except (AttributeError, NameError):
             pass
         print "Package:", self.pkg_name
+        module_name = os.path.basename(file_name)[:-3]
+        if module_name != self.pkg_name:
+            print "Module name does not match file name: ", module_name, " package: ", self.pkg_name
         self.out = open(self.pkg_name + ".update", 'w')
 
-        if 'bioconductor' in eb.name.lower():
-            self.bioconductor = True
-            self.bioc_data = {}
-            if self.offline:
-                bioc_files = ['packages.json', 'annotation.json', 'experiment.json']
-                for bioc_file in bioc_files:
-                    json_data = open(bioc_file).read()
-                    self.bioc_data.update(json.loads(json_data))
-            else:
-                bioc_urls = {'https://bioconductor.org/packages/json/3.3/bioc/packages.json',
-                             'https://bioconductor.org/packages/json/3.3/data/annotation/packages.json',
-                             'https://bioconductor.org/packages/json/3.3/data/experiment/packages.json'}
-                self.bioc_data = {}
-                for url in bioc_urls:
-                    response = urllib2.urlopen(url)
-                    self.bioc_data.update(json.loads(response.read()))
-        else:
-            self.bioconductor = False
+    def parse_eb(self, file_name, primary):
+        """ interpret easyconfig file with 'exec'.  Interperting fails if constants that are not defined within the
+            easyconfig file.  Add undefined constants it <header>.
+        """
+        header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
+        header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
+        header += self.prolog
+        code = header
+
+        eb = imp.new_module("easyconfig")
+        with open(file_name, "r") as f:
+            code += f.read()
+        try:
+            exec (code, eb.__dict__)
+        except Exception, e:
+            print "interperting easyconfig error: %s" % e
+        if primary:     # save original text of source code 
+            self.code = code
+            self.ptr_head = len(header)
+        return eb
 
     def update_exts(self):
         self.pkg_count = len(self.exts_orig)
@@ -140,9 +132,47 @@ class R(ExtsList):
     def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, 'R', verbose)
 
+        if 'bioconductor' in self.pkg_name.lower():
+            self.bioconductor = True
+            self.R_modules = [] 
+
+            #  Read the R package list from the dependent R package 
+            for dep in self.dependencies:
+                if dep[0] == 'R':
+                   R_name =  dep[0] + '-' + dep[1] + '-' 
+                   R_name += self.toolchain['name'] + '-' + self.toolchain['version']
+                   if len(dep) > 2:
+                       R_name += dep[2]
+                   R_name += '.eb'
+                   print 'Required R module: ', R_name
+                   eb = self.parse_eb(os.path.dirname(file_name) + '/' + R_name, primary=False)
+                   break
+            for pkg in eb.exts_list:
+                if isinstance(pkg, tuple):
+                    self.R_modules.append(pkg[0])
+                else:
+                    self.R_modules.append(pkg)
+            print 'R modules:', self.R_modules
+            self.read_bioconductor_pacakges()
+        else:
+            self.bioconductor = False
+
+    def read_bioconductor_pacakges(self):
+            """ read the Bioconductor package list into bio_data dict
+            """
+            self.bioc_data = {}
+            bioc_urls = {'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
+                         'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
+                         'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json'}
+            self.bioc_data = {}
+            for url in bioc_urls:
+                try:
+                    response = urllib2.urlopen(url)
+                except SSLError as e:
+                    sys.exit(e)
+                self.bioc_data.update(json.loads(response.read()))
+
     def check_CRAN(self, pkg):
-        if self.offline:
-            return pkg[1], []
         cran_list = "http://crandb.r-pkg.org/"
         resp = requests.get(url=cran_list + pkg[0])
 
@@ -164,14 +194,16 @@ class R(ExtsList):
         return pkg_ver, depends
 
     def check_BioC(self, pkg):
-        """
-            example bioc_data['pkg']['Depends'] [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
+        """ example bioc_data['pkg']['Depends'] [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
+                                    ['Imports'] [ 'Biobase', 'graphics', 'grDevices', 'venn', 'mclust', 'stats', 'utils', 'MASS' ]
         """
         depends = []
         if pkg[0] in self.bioc_data:
             pkg_ver = self.bioc_data[pkg[0]]['Version']
             if 'Depends' in self.bioc_data[pkg[0]]:
                 depends = [s.split(' ')[0] for s in self.bioc_data[pkg[0]]['Depends']]
+            if 'Imports' in self.bioc_data[pkg[0]]:
+                depends = self.bioc_data[pkg[0]]['Imports']
         else:
             pkg_ver = "not found"
         return pkg_ver, depends
@@ -185,6 +217,8 @@ class R(ExtsList):
             pkg_ver, depends = self.check_BioC(pkg)
             pkg[2] = 'bioconductor_options'
             if pkg_ver == 'not found':
+                if pkg[0] in self.R_modules:
+                    return
                 pkg_ver, depends = self.check_CRAN(pkg)
                 pkg[2] = 'ext_options'
         else:
@@ -258,9 +292,10 @@ if __name__ == '__main__':
         print "usage: %s [R or Python easybuild file]" % sys.argv[0]
         sys.exit(0)
 
-    if sys.argv[1][:2] == 'R-':
+    file_name = os.path.basename(sys.argv[1])
+    if file_name[:2] == 'R-':
         module = R(sys.argv[1], verbose=True)
-    elif sys.argv[1][:7] == 'Python-':
+    elif file_name[:7] == 'Python-':
         module = PythonExts(sys.argv[1], verbose=True)
     else:
         print "Module name must begin with R- or Python-"
