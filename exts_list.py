@@ -43,9 +43,10 @@ class ExtsList(object):
         except (AttributeError, NameError):
             pass
         print "Package:", self.pkg_name
-        module_name = os.path.basename(file_name)[:-3]
-        if module_name != self.pkg_name:
-            print "Module name does not match file name: ", module_name, " package: ", self.pkg_name
+        f_name = os.path.basename(file_name)[:-3]
+        if f_name != self.pkg_name:
+            print "file name does not match module. file name: ", f_name, " package: ", self.pkg_name
+            sys.exit(0)
         self.out = open(self.pkg_name + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
@@ -145,14 +146,15 @@ class R(ExtsList):
                        R_name += dep[2]
                    R_name += '.eb'
                    print 'Required R module: ', R_name
-                   eb = self.parse_eb(os.path.dirname(file_name) + '/' + R_name, primary=False)
+                   if  os.path.dirname(file_name):
+                       R_name = os.path.dirname(file_name) + '/' + R_name
+                   eb = self.parse_eb(R_name, primary=False)
                    break
             for pkg in eb.exts_list:
                 if isinstance(pkg, tuple):
                     self.R_modules.append(pkg[0])
                 else:
                     self.R_modules.append(pkg)
-            print 'R modules:', self.R_modules
             self.read_bioconductor_pacakges()
         else:
             self.bioconductor = False
@@ -168,7 +170,8 @@ class R(ExtsList):
             for url in bioc_urls:
                 try:
                     response = urllib2.urlopen(url)
-                except SSLError as e:
+                except IOError as e:
+                    print 'URL request: ', url
                     sys.exit(e)
                 self.bioc_data.update(json.loads(response.read()))
 
