@@ -25,16 +25,8 @@ class ExtsList(object):
         self.pkg_update = 0 
         self.pkg_new = 0 
 
-        self.new_exts = []
-        self.exts_remove = []
-        self.exts_processed = []  # single list of package names
-        self.prolog = '## remove ##\n'
-        self.ptr_head = 0 
-        self.indent = ' ' * self.indent_n
-        self.pkg_top = None
-        
         eb = self.parse_eb(file_name, primary=True)
-        self.exts_orig = eb.exts_list
+        self.extension = eb.exts_list
         self.toolchain = eb.toolchain
         self.dependencies = eb.dependencies
         self.pkg_name = eb.name + '-' + eb.version
@@ -70,6 +62,21 @@ class ExtsList(object):
             self.ptr_head = len(header)
         return eb
 
+    def exts2html(self):
+        for pkg in self.extension:
+            if isinstance(pkg, tuple):
+                pkg_name = pkg[0]
+                version = pkg[1]
+                url = get_package_url(pkg_name)
+            else:
+                pkg_name = pkg
+                version = 'built in'
+                url = ''
+            print '<li><a href="%s">%s</a></li>' 
+
+    def get_package_url(sefl, pkg_name):
+        pass
+    
 class R(ExtsList):
     depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
                       'tools', 'tcltk', 'grid', 'splines'}
@@ -79,26 +86,6 @@ class R(ExtsList):
 
         if 'bioconductor' in self.pkg_name.lower():
             self.bioconductor = True
-            self.R_modules = [] 
-
-            #  Read the R package list from the dependent R package 
-            for dep in self.dependencies:
-                if dep[0] == 'R':
-                   R_name =  dep[0] + '-' + dep[1] + '-' 
-                   R_name += self.toolchain['name'] + '-' + self.toolchain['version']
-                   if len(dep) > 2:
-                       R_name += dep[2]
-                   R_name += '.eb'
-                   print 'Required R module: ', R_name
-                   if  os.path.dirname(file_name):
-                       R_name = os.path.dirname(file_name) + '/' + R_name
-                   eb = self.parse_eb(R_name, primary=False)
-                   break
-            for pkg in eb.exts_list:
-                if isinstance(pkg, tuple):
-                    self.R_modules.append(pkg[0])
-                else:
-                    self.R_modules.append(pkg)
             self.read_bioconductor_pacakges()
         else:
             self.bioconductor = False
@@ -155,52 +142,12 @@ class R(ExtsList):
             pkg_ver = "not found"
         return pkg_ver, depends
 
-    def check_package(self, pkg, counter):
-        if pkg[0] in self.exts_processed:  # remove dupicates
-            if pkg[0] == self.pkg_top:
-                pkg.append('duplicate')
-            return
+    def get_package_url(self, pkg_name):
         if self.bioconductor:
-            pkg_ver, depends = self.check_BioC(pkg)
-            pkg[2] = 'bioconductor_options'
-            if pkg_ver == 'not found':
-                if pkg[0] in self.R_modules:
-                    return
-                pkg_ver, depends = self.check_CRAN(pkg)
-                pkg[2] = 'ext_options'
+            url = self.check_BioC(pkg)
         else:
-            pkg_ver, depends = self.check_CRAN(pkg)
-            pkg[2] = 'ext_options'
-
-        if pkg_ver == "error" or pkg_ver == 'not found':
-            if pkg[0] == self.pkg_top:
-                print pkg[0], "remove"
-                pkg.append('remove')
-            return
-
-        if pkg[0] == self.pkg_top:
-            if pkg[1] == pkg_ver:
-                pkg.append('keep')
-            else:
-                pkg[1] = pkg_ver
-                pkg.append('update')
-                self.pkg_update +=1
-        else:
-            pkg[1] = pkg_ver
-            pkg.append('new')
-            self.pkg_new +=1
-
-        for depend in depends:
-            if depend not in self.depend_exclude:
-                self.check_package([depend, "x", "source_url"], counter)
-        self.new_exts.append(pkg)
-        self.exts_processed.append(pkg[0])
-        if self.verbose:
-            if 'new' == pkg[-1]:
-                print "%20s : %-8s (%s-%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], pkg[2], counter, self.pkg_count)
-            else:
-                print "%20s : %-8s (%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], counter, self.pkg_count)
-
+            url = self.check_CRAN(pkg)
+        return url
 
 class PythonExts(ExtsList):
     def __init__(self, file_name, verbose=False):
