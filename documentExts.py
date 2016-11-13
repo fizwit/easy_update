@@ -16,14 +16,22 @@ class ExtsList(object):
 
     """
 
-    def __init__(self, file_name, outfp, lang, verbose=False):
-        self.lang = lang
+    def __init__(self, file_path, verbose=False):
         self.verbose = verbose
-        self.out = outfp 
-        self.indent_n = 4
-        self.pkg_count = 0 
-        self.pkg_update = 0 
-        self.pkg_new = 0 
+        self.pkg_count = 0
+
+        file_name = os.path.basename(file_path)
+        if file_name[:2] == 'R-bundle-Bioconductor':
+            self.out = open('Bioconductor.html', 'w')
+        elif file_name[:2] == 'R-':
+            self.out = open('R.html', 'w')
+        elif file_name[:8] == 'Python-2':
+            self.out = open('Python2.html', 'w')
+        elif file_name[:8] == 'Python-3':
+            self.out = open('Python3.html', 'w')
+        else:
+            print "Module name must begin with R-, R-bundle-Bioconductor or Python-"
+            sys.exit(1)
 
         eb = self.parse_eb(file_name, primary=True)
         self.extension = eb.exts_list
@@ -36,6 +44,7 @@ class ExtsList(object):
         except (AttributeError, NameError):
             pass
         print "Package:", self.pkg_name
+        self.out.write('<h2>%s</h2>' % self.pkg_name)
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
             print "file name does not match module. file name: ", f_name, " package: ", self.pkg_name
@@ -47,7 +56,6 @@ class ExtsList(object):
         """
         header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
         header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
-        header += self.prolog
         code = header
 
         eb = imp.new_module("easyconfig")
@@ -66,13 +74,13 @@ class ExtsList(object):
         for pkg in self.extension:
             if isinstance(pkg, tuple):
                 pkg_name = pkg[0]
-                version = pkg[1]
-                url = get_package_url(pkg_name)
+                version = str(pkg[1])
+                url = self.get_package_url(pkg_name)
+                self.out.write('<li><a href="%s">%s-%s</a></li>' % (url, pkg_name, version))
             else:
                 pkg_name = pkg
                 version = 'built in'
-                url = ''
-            print '<li><a href="%s">%s</a></li>' 
+                self.out.write('<li>%s-%s</li>' % (pkg_name, version))
 
     def get_package_url(sefl, pkg_name):
         pass
@@ -82,7 +90,7 @@ class R(ExtsList):
                       'tools', 'tcltk', 'grid', 'splines'}
 
     def __init__(self, file_name, verbose=False):
-        ExtsList.__init__(self, file_name, 'R', verbose)
+        ExtsList.__init__(self, file_name, verbose)
 
         if 'bioconductor' in self.pkg_name.lower():
             self.bioconductor = True
@@ -106,47 +114,25 @@ class R(ExtsList):
                     sys.exit(e)
                 self.bioc_data.update(json.loads(response.read()))
 
-    def check_CRAN(self, pkg):
-        cran_list = "http://crandb.r-pkg.org/"
-        resp = requests.get(url=cran_list + pkg[0])
+    def check_CRAN(self, pkg_name):
+        url = 'https://cran.r-project.org/web/packages/%s/index.html' % pkg_name
+        return url
 
-        cran_info = json.loads(resp.text)
-        if 'error' in cran_info and cran_info['error'] == 'not_found':
-            return "not found", []
-        try:
-            pkg_ver = cran_info[u'Version']
-        except KeyError:
-            self.exts_remove.append(pkg[0])
-            return "error", []
-        depends = []
-        if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
-            return 'base package', [] 
-        if u"Depends" in cran_info:
-            depends = cran_info[u"Depends"].keys()
-        if u"Imports" in cran_info:
-           depends += cran_info[u"Imports"].keys() 
-        return pkg_ver, depends
-
-    def check_BioC(self, pkg):
+    def check_BioC(self, pkg_name):
         """ example bioc_data['pkg']['Depends'] [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
                                     ['Imports'] [ 'Biobase', 'graphics', 'grDevices', 'venn', 'mclust', 'stats', 'utils', 'MASS' ]
         """
-        depends = []
-        if pkg[0] in self.bioc_data:
-            pkg_ver = self.bioc_data[pkg[0]]['Version']
-            if 'Depends' in self.bioc_data[pkg[0]]:
-                depends = [s.split(' ')[0] for s in self.bioc_data[pkg[0]]['Depends']]
-            if 'Imports' in self.bioc_data[pkg[0]]:
-                depends = self.bioc_data[pkg[0]]['Imports']
+        if pkg_name in self.bioc_data:
+            url = 'http://bioconductor.org/packages/release/bioc/html/%s.html' % pkg_name
         else:
-            pkg_ver = "not found"
-        return pkg_ver, depends
+            url = 'not found'
+        return url
 
     def get_package_url(self, pkg_name):
         if self.bioconductor:
-            url = self.check_BioC(pkg)
+            url = self.check_BioC(pkg_name)
         else:
-            url = self.check_CRAN(pkg)
+            url = self.check_CRAN(pkg_name)
         return url
 
 class PythonExts(ExtsList):
@@ -187,20 +173,11 @@ if __name__ == '__main__':
         sys.exit(0)
 
     file_name = os.path.basename(sys.argv[1])
-    if file_name[:21] == 'R-bundle-Bioconductor':
-        outfp = open('Bioconductor.html', 'w')
-        module = R(sys.argv[1], outfp, verbose=True)
-    elif file_name[:2] == 'R-':
-        outfp = open('R.html', 'w')
-        module = R(sys.argv[1], outfp, verbose=True)
-    elif file_name[:8] == 'Python-2':
-        outfp = open('Python2.html', 'w')
-        module = PythonExts(sys.argv[1], outfp, verbose=True)
-    elif file_name[:8] == 'Python-3':
-        outfp = open('Python3.html', 'w')
-        module = PythonExts(sys.argv[1], outfp, verbose=True)
+    if file_name[:2] == 'R-':
+        module = R(sys.argv[1], verbose=True)
+    elif file_name[:7] == 'Python-':
+        module = PythonExts(sys.argv[1], verbose=True)
     else:
         print "Module name must begin with R-, R-bundle-Bioconductor or Python-"
         sys.exit(1)
     module.exts2html()
-    module.print_update()
