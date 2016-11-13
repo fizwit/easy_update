@@ -4,6 +4,7 @@ import os
 import sys
 import imp
 import json
+import ssl
 import requests
 import urllib2
 import xmlrpclib
@@ -106,9 +107,12 @@ class R(ExtsList):
                          'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
                          'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json'}
             self.bioc_data = {}
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
             for url in bioc_urls:
                 try:
-                    response = urllib2.urlopen(url)
+                    response = urllib2.urlopen(url, context=ctx)
                 except IOError as e:
                     print 'URL request: ', url
                     sys.exit(e)
