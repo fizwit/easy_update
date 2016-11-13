@@ -15,7 +15,7 @@ class ExtsList(object):
 
     """
     def __init__(self, file_name, lang, verbose=False):
-        self.offline = True
+        self.offline = False
         self.lang = lang
         self.verbose = verbose
         self.indent_n = 4
@@ -241,6 +241,6 @@ if __name__ == '__main__':
     #r.update_exts()
     #r.print_update()
 
-    r = Python_exts('R-3.3.1-foss-2016b.eb')
+    r = R('R-3.3.1-foss-2016b.eb')
     r.update_exts()
     r.print_update()
