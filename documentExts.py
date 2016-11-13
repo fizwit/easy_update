@@ -14,7 +14,6 @@ class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild easyconfig files for R and Python.
      Easyconfig files for R and Python can have over a hundred modules in an ext_list.  This program automates the
      the updating of extension lists for R and Python.
-
     """
 
     def __init__(self, file_path, verbose=False):
