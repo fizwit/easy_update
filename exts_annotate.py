@@ -37,7 +37,7 @@ class ExtsList(object):
             print "Module name must begin with R-, R-bundle-Bioconductor or Python-"
             sys.exit(1)
 
-        eb = self.parse_eb(file_name)
+        eb = self.parse_eb(file_path)
         self.extension = eb.exts_list
         self.toolchain = eb.toolchain
         self.dependencies = eb.dependencies
@@ -56,7 +56,7 @@ class ExtsList(object):
             sys.exit(0)
 
     @staticmethod
-    def parse_eb(file_name):
+    def parse_eb(file_path):
         # type: (object) -> object file_name) -> dict:
         """ interpret easyconfig file with 'exec'.  Interperting fails if constants that are not defined within the
             Easyconfig file.  Add undefined constants it <header>.
@@ -66,7 +66,7 @@ class ExtsList(object):
         code = header
 
         eb = imp.new_module("easyconfig")
-        with open(file_name, "r") as f:
+        with open(file_path, "r") as f:
             code += f.read()
         try:
             exec (code, eb.__dict__)
