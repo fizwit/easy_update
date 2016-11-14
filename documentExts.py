@@ -175,7 +175,7 @@ class R(ExtsList):
             url = 'http://bioconductor.org/packages/release/bioc/html/%s.html' % pkg_name
             description = self.bioc_data[pkg_name]['Title']
         else:
-            url, description = self.check_CRAN
+            url, description = self.check_CRAN(pkg_name)
             description = '[CRAN]&emsp;' + description
         return url, description
 
