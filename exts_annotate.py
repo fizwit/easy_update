@@ -117,7 +117,7 @@ class ExtsList(object):
 
     def get_package_url(self, pkg_name):
         pass
-    
+
 
 class R(ExtsList):
     depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
@@ -135,26 +135,26 @@ class R(ExtsList):
             self.bioconductor = False
 
     def read_bioconductor_pacakges(self):
-            """ read the Bioconductor package list into bio_data dict
+        """ read the Bioconductor package list into bio_data dict
             """
-            self.bioc_urls = [
-                ['packages', 'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
-                          'https://bioconductor.org/packages/release/bioc/html/'],
-                ['annotation', 'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
-                           'https://bioconductor.org/packages/release/data/annotation/html/'],
-                ['experiment','https://bioconductor.org/packages/json/3.4/data/experiment/packages.json',
-                           'https://bioconductor.org/packages/release/data/experiment/html/']
-            ]
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            for url in self.bioc_urls:
-                try:
-                    response = urllib2.urlopen(url[1], context=ctx)
-                except IOError as e:
-                    print 'URL request: ', url[1]
-                    sys.exit(e)
-                self.bioc_data[url[0]] = json.loads(response.read())
+        self.bioc_urls = [
+            ['packages', 'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
+             'https://bioconductor.org/packages/release/bioc/html/'],
+            ['annotation', 'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
+             'https://bioconductor.org/packages/release/data/annotation/html/'],
+            ['experiment', 'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json',
+             'https://bioconductor.org/packages/release/data/experiment/html/']
+        ]
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        for url in self.bioc_urls:
+            try:
+                response = urllib2.urlopen(url[1], context=ctx)
+            except IOError as e:
+                print 'URL request: ', url[1]
+                sys.exit(e)
+            self.bioc_data[url[0]] = json.loads(response.read())
 
     @staticmethod
     def check_CRAN(pkg_name):
@@ -182,8 +182,6 @@ class R(ExtsList):
             if pkg_name in self.bioc_data[bioc_pkg[0]]:
                 url = bioc_pkg[2] + pkg_name + '.html'
                 description = self.bioc_data[bioc_pkg[0]][pkg_name]['Title']
-                print pkg_name, ' found: ', bioc_pkg[0]
-
         if url == 'not found':
             url, description = self.check_CRAN(pkg_name)
             description = '[CRAN]&emsp;' + description
@@ -218,6 +216,7 @@ class PythonExts(ExtsList):
         if pkg_data and 'package_url' in pkg_data:
             url = pkg_data['package_url']
         return url, description
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
