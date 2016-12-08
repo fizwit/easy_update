@@ -1,0 +1,275 @@
+Package name: Python-2.7.12-foss-2016b-fh2
+setuptools requires_dist:  certifi
+             certifi : 2016.9.26 (new) [148, 1]
+          setuptools : 30.3.0   (update) [148, 2]
+pip requires_dist:  mock, pretend, pytest, scripttest, virtualenv
+                mock : 2.0.0    (new) [148, 3]
+             pretend : 1.0.8    (new) [148, 4]
+              pytest : 3.0.5    (new) [148, 5]
+          scripttest : 1.3      (new) [148, 6]
+          virtualenv : 15.1.0   (new) [148, 7]
+                 pip : 9.0.1    (update) [148, 8]
+                nose : 1.3.7    (keep) [148, 9]
+               numpy : 1.12.0b1 (update) [148, 10]
+scipy requires_dist:  numpy
+               scipy : 0.18.1   (update) [148, 11]
+               blist : 1.3.6    (keep) [148, 12]
+              mpi4py : 2.0.0    (update) [148, 13]
+            paycheck : 1.0.2    (keep) [148, 14]
+                 pbr : 1.10.0   (keep) [148, 15]
+Warning: msings.py Not in PyPi. No depdancy checking performed
+           msings.py : 1.1      (keep) [148, 16]
+Warning: PyClone Not in PyPi. No depdancy checking performed
+             PyClone : 0.12.9   (keep) [148, 17]
+Warning: PyDP Not in PyPi. No depdancy checking performed
+                PyDP : 0.2.2    (keep) [148, 18]
+             appdirs : 1.4.0    (keep) [148, 19]
+            argparse : 1.4.0    (keep) [148, 20]
+            lockfile : 0.12.2   (keep) [148, 21]
+            cutadapt : 1.12     (update) [148, 22]
+Warning: cycler Not in PyPi. No depdancy checking performed
+              cycler : 0.10.0   (keep) [148, 23]
+              Cython : 0.25.1   (update) [148, 24]
+                 six : 1.10.0   (keep) [148, 25]
+                deap : 1.0.2    (keep) [148, 26]
+           decorator : 4.0.10   (keep) [148, 27]
+           bcbio-gff : 0.6.4    (keep) [148, 28]
+           biopython : 1.68     (keep) [148, 29]
+               shove : 0.6.6    (keep) [148, 30]
+    python-memcached : 1.58     (keep) [148, 31]
+               PyVCF : 0.6.8    (keep) [148, 32]
+           deepTools : 2.4.1    (update) [148, 33]
+        twobitreader : 3.1.4    (keep) [148, 34]
+               pysam : 0.9.1.4  (keep) [148, 35]
+                arff : 0.9      (update) [148, 36]
+            pycrypto : 2.6.1    (keep) [148, 37]
+               ecdsa : 0.13     (keep) [148, 38]
+        cryptography : 1.6      (update) [148, 39]
+              pyasn1 : 0.1.9    (keep) [148, 40]
+paramiko requires_dist:  cryptography, pyasn1
+            paramiko : 2.0.2    (keep) [148, 41]
+           pyparsing : 2.1.10   (update) [148, 42]
+           netifaces : 0.10.5   (keep) [148, 43]
+             netaddr : 0.7.18   (keep) [148, 44]
+            funcsigs : 1.0.2    (keep) [148, 45]
+                pytz : 2016.10  (update) [148, 46]
+              pandas : 0.19.1   (update) [148, 47]
+              enum34 : 1.1.6    (update) [148, 48]
+           bitstring : 3.1.5    (keep) [148, 49]
+requests requires_dist:  cryptography, idna, pyOpenSSL, PySocks
+                idna : 2.1      (new) [148, 50]
+pyOpenSSL requires_dist:  cryptography, six
+           pyOpenSSL : 16.2.0   (new) [148, 51]
+             PySocks : 1.6.4    (new) [148, 52]
+            requests : 2.12.3   (update) [148, 53]
+             futures : 3.0.5    (keep) [148, 54]
+python-swiftclient requires_dist:  requests, six, futures, python-keystoneclient
+python-keystoneclient requires_dist:  oslo.i18n, debtcollector, keystoneauth1, oslo.config, oslo.serialization, oslo.utils, pbr, positional, requests, six, stevedore
+oslo.i18n requires_dist:  Babel, pbr, six
+Babel requires_dist:  pytz
+               Babel : 2.3.4    (new) [148, 55]
+           oslo.i18n : 3.11.0   (new) [148, 56]
+debtcollector requires_dist:  pbr, six, wrapt, funcsigs
+               wrapt : 1.10.8   (new) [148, 57]
+       debtcollector : 1.10.0   (new) [148, 58]
+keystoneauth1 requires_dist:  iso8601, pbr, positional, requests, six, stevedore, betamax, fixtures, mock, requests-kerberos, oauthlib, lxml
+             iso8601 : 0.1.11   (new) [148, 59]
+          positional : 1.1.1    (new) [148, 60]
+stevedore requires_dist:  pbr, six
+           stevedore : 1.19.1   (new) [148, 61]
+betamax requires_dist:  requests
+             betamax : 0.8.0    (new) [148, 62]
+            fixtures : 3.0.0    (new) [148, 63]
+requests-kerberos requires_dist:  requests, pykerberos
+          pykerberos : 1.1.13   (new) [148, 64]
+   requests-kerberos : 0.11.0   (new) [148, 65]
+            oauthlib : 2.0.1    (new) [148, 66]
+                lxml : 3.6.4    (new) [148, 67]
+       keystoneauth1 : 2.16.0   (new) [148, 68]
+oslo.config requires_dist:  debtcollector, netaddr, oslo.i18n, rfc3986, six, stevedore
+             rfc3986 : 0.4.1    (new) [148, 69]
+         oslo.config : 3.21.0   (new) [148, 70]
+oslo.serialization requires_dist:  msgpack-python, oslo.utils, pbr, pytz, six
+      msgpack-python : 0.4.8    (new) [148, 71]
+oslo.utils requires_dist:  debtcollector, iso8601, monotonic, netaddr, netifaces, oslo.i18n, pbr, pyparsing, pytz, six, funcsigs
+           monotonic : 1.2      (new) [148, 72]
+          oslo.utils : 3.20.0   (new) [148, 73]
+  oslo.serialization : 2.15.0   (new) [148, 74]
+python-keystoneclient : 3.8.0    (new) [148, 75]
+  python-swiftclient : 3.2.0    (update) [148, 76]
+          simplejson : 3.10.0   (update) [148, 77]
+         PrettyTable : 0.7.2    (keep) [148, 78]
+python-novaclient requires_dist:  Babel, PrettyTable, argparse, iso8601, oslo.i18n, oslo.serialization, oslo.utils, pbr, python-keystoneclient, requests, simplejson, six
+   python-novaclient : 2.30.3   (update) [148, 79]
+               Flask : 0.11.1   (keep) [148, 80]
+           Flask-WTF : 0.13.1   (update) [148, 81]
+     Flask-Bootstrap : 3.3.7.0  (update) [148, 82]
+     flask-appconfig : 0.11.1   (keep) [148, 83]
+         Flask-Debug : 0.4.3    (keep) [148, 84]
+           flask-nav : 0.6      (update) [148, 85]
+        Flask-Script : 2.0.5    (keep) [148, 86]
+    Flask-SQLAlchemy : 2.1      (keep) [148, 87]
+       Flask-Migrate : 2.0.1    (update) [148, 88]
+            psycopg2 : 2.6.2    (keep) [148, 89]
+            pypandoc : 1.3.3    (update) [148, 90]
+qrcode requires_dist:  six
+              qrcode : 5.3      (keep) [148, 91]
+            docutils : 0.12     (keep) [148, 92]
+            Pygments : 2.1.3    (keep) [148, 93]
+            Markdown : 2.6.7    (update) [148, 94]
+              Jinja2 : 2.8      (keep) [148, 95]
+darkslide requires_dist:  Jinja2, Markdown, Pygments, docutils, qrcode, six
+           darkslide : 2.3.3    (keep) [148, 96]
+            watchdog : 0.8.3    (keep) [148, 97]
+              pycurl : 7.43.0   (keep) [148, 98]
+       simplegeneric : 0.8.1    (keep) [148, 99]
+    ipython_genutils : 0.1.0    (keep) [148, 100]
+traitlets requires_dist:  decorator, ipython-genutils, six, enum34, enum34, pytest, mock
+Warning: ipython-genutils Not in PyPi. No depdancy checking performed
+           traitlets : 4.3.1    (update) [148, 101]
+pickleshare requires_dist:  pathlib2
+            pathlib2 : 2.1.0    (new) [148, 102]
+         pickleshare : 0.7.4    (keep) [148, 103]
+Warning: backports.shutil-get-terminal-size Not in PyPi. No depdancy checking performed
+backports.shutil-get-terminal-size : 1.0.0    (keep) [148, 104]
+      prompt_toolkit : 1.0.9    (update) [148, 105]
+          SQLAlchemy : 1.1.4    (update) [148, 106]
+               bokeh : 0.12.3   (update) [148, 107]
+              Nuitka : 0.5.24.1 (update) [148, 108]
+               boto3 : 1.4.2    (update) [148, 109]
+               drmaa : 0.7.6    (keep) [148, 110]
+             easygui : 0.98.0   (keep) [148, 111]
+             astroid : 1.4.8    (keep) [148, 112]
+             tzlocal : 1.3      (update) [148, 113]
+APScheduler requires_dist:  pytz, setuptools, six, tzlocal, funcsigs, futures, trollius, asyncio, gevent, pymongo, redis, rethinkdb, sqlalchemy, pytest, pytest-catchlog, pytest-cov, pytest-tornado, pytest-asyncio, mock, tornado, twisted, kazoo
+            trollius : 2.1      (new) [148, 114]
+             asyncio : 3.4.3    (new) [148, 115]
+              gevent : 1.2a1    (new) [148, 116]
+             pymongo : 3.4.0    (new) [148, 117]
+               redis : 2.10.5   (new) [148, 118]
+           rethinkdb : 2.3.0.post6 (new) [148, 119]
+Warning: sqlalchemy Not in PyPi. No depdancy checking performed
+pytest-catchlog requires_dist:  py, pytest
+                  py : 1.4.32.dev1 (new) [148, 120]
+     pytest-catchlog : 1.2.2    (new) [148, 121]
+pytest-cov requires_dist:  pytest, coverage
+            coverage : 4.2      (new) [148, 122]
+          pytest-cov : 2.4.0    (new) [148, 123]
+pytest-tornado requires_dist:  pytest, tornado
+             tornado : 4.4.2    (new) [148, 124]
+      pytest-tornado : 0.4.5    (new) [148, 125]
+pytest-asyncio requires_dist:  pytest, asyncio
+      pytest-asyncio : 0.5.0    (new) [148, 126]
+Warning: twisted Not in PyPi. No depdancy checking performed
+kazoo requires_dist:  six, six, coverage, mock, nose, flake8, gevent, eventlet
+flake8 requires_dist:  enum34, configparser, pyflakes, pycodestyle, mccabe
+        configparser : 3.5.0    (new) [148, 127]
+            pyflakes : 1.3.0    (new) [148, 128]
+         pycodestyle : 2.2.0    (new) [148, 129]
+              mccabe : 0.5.2    (new) [148, 130]
+              flake8 : 3.2.1    (new) [148, 131]
+            eventlet : 0.19.0   (new) [148, 132]
+               kazoo : 2.2.1    (new) [148, 133]
+         APScheduler : 3.3.0    (update) [148, 134]
+os-client-config requires_dist:  PyYAML, appdirs, keystoneauth1, requestsexceptions
+              PyYAML : 3.12     (new) [148, 135]
+requestsexceptions requires_dist:  pbr
+  requestsexceptions : 1.1.3    (new) [148, 136]
+    os-client-config : 1.24.0   (update) [148, 137]
+openstacksdk requires_dist:  pbr, six, stevedore, os-client-config, keystoneauth1
+        openstacksdk : 0.9.10   (update) [148, 138]
+python-openstackclient requires_dist:  Babel, cliff, keystoneauth1, openstacksdk, osc-lib, oslo.i18n, oslo.utils, pbr, python-cinderclient, python-glanceclient, python-keystoneclient, python-novaclient, six
+cliff requires_dist:  pbr, cmd2, PrettyTable, pyparsing, six, stevedore, PyYAML, unicodecsv
+                cmd2 : 0.6.9    (new) [148, 139]
+          unicodecsv : 0.14.1   (new) [148, 140]
+               cliff : 2.3.0    (new) [148, 141]
+osc-lib requires_dist:  pbr, six, Babel, cliff, keystoneauth1, os-client-config, oslo.i18n, oslo.utils, simplejson, stevedore
+             osc-lib : 1.2.0    (new) [148, 142]
+python-cinderclient requires_dist:  Babel, PrettyTable, keystoneauth1, oslo.i18n, oslo.utils, pbr, requests, simplejson, six
+ python-cinderclient : 1.9.0    (new) [148, 143]
+python-glanceclient requires_dist:  Babel, PrettyTable, oslo.i18n, oslo.utils, pbr, python-keystoneclient, requests, six, warlock
+             warlock : 1.3.0    (new) [148, 144]
+ python-glanceclient : 2.5.0    (new) [148, 145]
+python-openstackclient : 3.4.1    (update) [148, 146]
+oslo.concurrency requires_dist:  fasteners, oslo.config, oslo.i18n, oslo.utils, pbr, six, enum34
+fasteners requires_dist:  six, monotonic
+           fasteners : 0.14.1   (new) [148, 147]
+    oslo.concurrency : 3.16.0   (update) [148, 148]
+oslo.context requires_dist:  pbr, positional
+        oslo.context : 2.11.0   (update) [148, 149]
+oslo.log requires_dist:  debtcollector, monotonic, oslo.config, oslo.context, oslo.i18n, oslo.serialization, oslo.utils, pbr, python-dateutil, six, pyinotify, fixtures
+     python-dateutil : 2.6.0    (new) [148, 150]
+           pyinotify : 0.9.6    (new) [148, 151]
+            oslo.log : 3.19.0   (update) [148, 152]
+             PyMySQL : 0.7.9    (update) [148, 153]
+freezer requires_dist:  astroid, setuptools, pbr, python-swiftclient, python-cinderclient, python-glanceclient, python-novaclient, python-openstackclient, oslo.utils, oslo.i18n, oslo.log, oslo.config, keystoneauth1, PyMySQL, pymongo, paramiko, six, apscheduler, psutil
+Warning: apscheduler Not in PyPi. No depdancy checking performed
+              psutil : 5.0.0    (new) [148, 154]
+             freezer : 3.0.0    (update) [148, 155]
+uritemplate.py requires_dist:  uritemplate
+         uritemplate : 3.0.0    (new) [148, 156]
+      uritemplate.py : 3.0.2    (update) [148, 157]
+github3.py requires_dist:  requests, uritemplate.py, pyOpenSSL, ndg-httpsclient, pyasn1
+     ndg-httpsclient : 0.4.2    (new) [148, 158]
+          github3.py : 1.0.0a4  (keep) [148, 159]
+      beautifulsoup4 : 4.5.1    (keep) [148, 160]
+google requires_dist:  beautifulsoup4
+              google : 1.9.3    (keep) [148, 161]
+                h5py : 2.6.0    (keep) [148, 162]
+            html5lib : 0.999999999 (keep) [148, 163]
+ldap3 requires_dist:  pyasn1
+               ldap3 : 2.1.1    (update) [148, 164]
+                Mako : 1.0.6    (update) [148, 165]
+         functools32 : 3.2.3-2  (keep) [148, 166]
+          matplotlib : 2.0.0rc1 (update) [148, 167]
+           mincemeat : 0.1.4    (keep) [148, 168]
+           npyscreen : 4.10.5   (keep) [148, 169]
+               oauth : 1.0.1    (keep) [148, 170]
+            pyBigWig : 0.3.2    (update) [148, 171]
+          python-pam : 1.8.2    (keep) [148, 172]
+             pymssql : 2.1.3    (keep) [148, 173]
+               urwid : 1.3.1    (keep) [148, 174]
+                rpy2 : 2.8.4    (update) [148, 175]
+               alnvu : 0.1.0    (keep) [148, 176]
+           seqmagick : 0.6.1    (keep) [148, 177]
+           pyensembl : 1.0.3    (keep) [148, 178]
+              smmap2 : 2.0.1    (update) [148, 179]
+gitdb2 requires_dist:  smmap2
+              gitdb2 : 2.0.0    (keep) [148, 180]
+GitPython requires_dist:  gitdb2
+           GitPython : 2.1.1    (update) [148, 181]
+      ConfigArgParse : 0.11.0   (keep) [148, 182]
+               HTSeq : 0.6.1    (keep) [148, 183]
+duplicate: mock
+duplicate: virtualenv
+duplicate: Babel
+duplicate: wrapt
+duplicate: debtcollector
+duplicate: monotonic
+duplicate: iso8601
+duplicate: stevedore
+duplicate: rfc3986
+duplicate: positional
+duplicate: msgpack-python
+duplicate: wrapt
+duplicate: keystoneauth1
+duplicate: python-keystoneclient
+duplicate: Pygments
+duplicate: python-glanceclient
+duplicate: requestsexceptions
+duplicate: warlock
+duplicate: python-cinderclient
+duplicate: PyYAML
+duplicate: cmd2
+duplicate: cliff
+duplicate: osc-lib
+duplicate: oslo.i18n
+duplicate: oslo.utils
+duplicate: oslo.config
+duplicate: oslo.serialization
+duplicate: python-dateutil
+duplicate: warlock
+duplicate: pymongo
+duplicate: psutil
+Updated Packages: 48
+New Packages: 66

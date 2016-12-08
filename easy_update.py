@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 import os
 import sys
 import imp
@@ -11,24 +12,24 @@ import xmlrpclib
 
 class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild easyconfig files for R and Python.
-     Easyconfig files for R and Python can have over a hundred modules in an ext_list.  This program automates the
-     the updating of extension lists for R and Python.
-
+     R and Python langueges support package extensions. Easyconfig supports the building of the language 
+     with a list of extions. This program automates the the updating of extension lists for R and Python
+     by using API for resolving current version for each package.
     """
 
     def __init__(self, file_name, lang, verbose=False):
         self.lang = lang
         self.verbose = verbose
-        self.indent_n = 4
-        self.pkg_count = 0 
+        self.ext_list_len = 0
+        self.ext_counter = 0
         self.pkg_update = 0 
         self.pkg_new = 0 
 
-        self.new_exts = []
-        self.exts_remove = []
         self.exts_processed = []  # single list of package names
+        self.depend_exclude = []  # built in packages not be added to exts_list 
         self.prolog = '## remove ##\n'
         self.ptr_head = 0 
+        self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.pkg_top = None
         
@@ -38,11 +39,13 @@ class ExtsList(object):
         self.dependencies = eb.dependencies
         self.pkg_name = eb.name + '-' + eb.version
         self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
+
+        self.bioconductor = False
         try:
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
-        print "Package:", self.pkg_name
+        print "Package name:", self.pkg_name
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
             print "file name does not match module. file name: ", f_name, " package: ", self.pkg_name
@@ -70,16 +73,58 @@ class ExtsList(object):
             self.ptr_head = len(header)
         return eb
 
+    def get_package_info(self, pkg):
+        pass
+
+    def check_package(self, pkg ):
+        pkg_name = pkg[0]
+        if pkg_name in [i[0] for i in self.exts_processed] or pkg_name in self.depend_exclude: 
+            if pkg_name == self.pkg_top:
+                pkg.append('duplicate')
+                self.exts_processed.append(pkg)
+            return
+        pkg_ver, depends = self.get_package_info(pkg)
+        if pkg_ver == "error" or pkg_ver == 'not found':
+            if pkg_name == self.pkg_top:
+                pkg.append('keep')
+            else:
+                return
+        else:
+            if self.pkg_top == pkg_name:
+                if pkg[1] == pkg_ver:
+                     pkg.append('keep')
+                else:
+                     pkg[1] = pkg_ver 
+                     pkg.append('update')
+                     self.pkg_update +=1
+            else:
+                pkg[1] = pkg_ver 
+                pkg.append('new')
+                self.pkg_new +=1
+
+        self.exts_processed.append(pkg)
+
+        for depend in depends: 
+            if depend not in self.depend_exclude:
+                if self.lang == "Python":
+                    ext_url  = "{\n%s'source_urls': " % (self.indent * 2)
+                    ext_url += "['https://pypi.python.org/packages/source/%s/%s/'],\n%s}" % (
+                        depend[0], depend, self.indent)
+                else:
+                    ext_url = ''
+                self.check_package([depend, 'x', ext_url])
+        self.ext_counter += 1
+        if self.verbose:
+            print "%20s : %-8s (%s) [%2d, %d]" % (pkg[0], pkg[1], pkg[-1], self.ext_list_len, self.ext_counter)
+
     def update_exts(self):
-        self.pkg_count = len(self.exts_orig)
-        i=1
+        self.ext_list_len = len(self.exts_orig)
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
                 self.pkg_top = pkg[0]
-                self.check_package(list(pkg),i)
+                self.check_package(list(pkg))
             else:
-                self.new_exts.append(pkg)
-            i += 1
+                self.exts_processed.append(pkg)
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -91,7 +136,7 @@ class ExtsList(object):
         self.write_chunk(indx)
         self.out.write("%s'," % pkg[1])  # write version Number
         self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
-        indx = self.code[self.ptr_head:].find(',') + self.ptr_head + 2  # find end of extension
+        indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3  # search to the end of the extension
         self.write_chunk(indx)
 
     def print_update(self):
@@ -101,7 +146,7 @@ class ExtsList(object):
         indx = self.code.find('exts_list') + len('exts_list')
         self.write_chunk(indx)
 
-        for extension in self.new_exts:
+        for extension in self.exts_processed:
             if isinstance(extension, str):  # base library with no version
                 indx = self.code[self.ptr_head:].find(extension) + self.ptr_head + len(extension) + 2
                 self.write_chunk(indx)
@@ -111,7 +156,9 @@ class ExtsList(object):
                 self.rewriteExtension(extension)
                 # sys.exit(0)
             elif action == 'duplicate':
-                self.ptr_head = self.code[self.ptr_head:].find(extension[0]) + len(extension[0])
+                print("duplicate: %s" % extension[0])
+                self.ptr_head = self.code[self.ptr_head:].find(extension[0]) + self.ptr_head + len(extension[0])
+                self.ptr_head = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
                 continue
             elif action == 'new':
                 if self.bioconductor and extension[2] == 'ext_options':  # do not add cran packages to bioConductor
@@ -122,16 +169,12 @@ class ExtsList(object):
         print "Updated Packages: %d" % self.pkg_update
         print "New Packages: %d" % self.pkg_new
 
-    def check_package(self, pkg, counter):
-        pass
-
 
 class R(ExtsList):
-    depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
-                      'tools', 'tcltk', 'grid', 'splines'}
-
     def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, 'R', verbose)
+        self.depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 
+            'stats4', 'graphics', 'grDevices', 'tools', 'tcltk', 'grid', 'splines']
 
         if 'bioconductor' in self.pkg_name.lower():
             self.bioconductor = True
@@ -185,7 +228,6 @@ class R(ExtsList):
         try:
             pkg_ver = cran_info[u'Version']
         except KeyError:
-            self.exts_remove.append(pkg[0])
             return "error", []
         depends = []
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
@@ -204,90 +246,84 @@ class R(ExtsList):
         if pkg[0] in self.bioc_data:
             pkg_ver = self.bioc_data[pkg[0]]['Version']
             if 'Depends' in self.bioc_data[pkg[0]]:
-                depends = [s.split(' ')[0] for s in self.bioc_data[pkg[0]]['Depends']]
+                depends = [re.split('[ (><=,]',s)[0] for s in self.bioc_data[pkg[0]]['Depends']]
             if 'Imports' in self.bioc_data[pkg[0]]:
-                depends = self.bioc_data[pkg[0]]['Imports']
+                depends = [re.split('[ (><=,]',s)[0] for s in self.bioc_data[pkg[0]]['Imports']]
         else:
             pkg_ver = "not found"
         return pkg_ver, depends
 
-    def check_package(self, pkg, counter):
-        if pkg[0] in self.exts_processed:  # remove dupicates
-            if pkg[0] == self.pkg_top:
-                pkg.append('duplicate')
-            return
+    def get_package_info(self, pkg):
         if self.bioconductor:
             pkg_ver, depends = self.check_BioC(pkg)
             pkg[2] = 'bioconductor_options'
             if pkg_ver == 'not found':
                 if pkg[0] in self.R_modules:
-                    return
+                    return pkg_ver, []
                 pkg_ver, depends = self.check_CRAN(pkg)
                 pkg[2] = 'ext_options'
         else:
             pkg_ver, depends = self.check_CRAN(pkg)
             pkg[2] = 'ext_options'
-
-        if pkg_ver == "error" or pkg_ver == 'not found':
-            if pkg[0] == self.pkg_top:
-                print pkg[0], "remove"
-                pkg.append('remove')
-            return
-
-        if pkg[0] == self.pkg_top:
-            if pkg[1] == pkg_ver:
-                pkg.append('keep')
-            else:
-                pkg[1] = pkg_ver
-                pkg.append('update')
-                self.pkg_update +=1
-        else:
-            pkg[1] = pkg_ver
-            pkg.append('new')
-            self.pkg_new +=1
-
-        for depend in depends:
-            if depend not in self.depend_exclude:
-                self.check_package([depend, "x", "source_url"], counter)
-        self.new_exts.append(pkg)
-        self.exts_processed.append(pkg[0])
-        if self.verbose:
-            if 'new' == pkg[-1]:
-                print "%20s : %-8s (%s-%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], pkg[2], counter, self.pkg_count)
-            else:
-                print "%20s : %-8s (%s) (%d/%d)" % (pkg[0], pkg[1], pkg[-1], counter, self.pkg_count)
+        for p in depends:
+            print("%s requires: %s" % (pkg[0], p)) 
+        return pkg_ver, depends
 
 
 class PythonExts(ExtsList):
+
     def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, 'Python')
         self.verbose = verbose
         self.pkg_dict = None
+        self.client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
+        #self.depend_exclude = []
 
     def parse_pypi_requires(self, requires):
-        if ';' in requires:
-            name = requires.split(';')[0]
-        elif '(' in requires:
-            name = requires.split('(')[0]
+        """ pypi requiers_list is a mess of ugly inconsistent strings
+            extreme badness incounted includes packages that referance them selves (infinite recursion) And
+            pypi package names with incorect case
+
+            We only care about the package name so ignore all version information 
+            input: 'numpy (>=1.7.1)'  output: ['numpy', '']
+            badness:  
+                psutil (<2.0.0,>=1.1.1)
+                netaddr (!=0.7.16,>=0.7.13)
+                requests>=2.0    # no delimiters at all
+                apscheduler  != APScheduler
+        """
+        require_re = '^([A-Za-z0-9_\-\.]+)(?:.*)$'
+        ans = re.search(require_re, requires)
+        if ans:
+            name = ans.group(1)
         else:
-            name = requires
+             print("difficult to parse requirement: <%s>" % requires)
+             name = requires
         return name
 
-    def check_package(self, pkg_name):
-        if pkg_name in self.exts_processed:
-            return []
-        client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
-        xml_vers = client.package_releases(pkg_name)
+    def get_package_info(self, pkg):
+        """Python pypi API for package version and dependancy list 
+           pkg is a list; ['package name', 'version', 'other stuff']
+           return the version number for the package and a list of dependancie
+        """
+        depends = []
+        xml_vers = self.client.package_releases(pkg[0])
         if xml_vers:
-            self.pkg_dict[pkg_name] = [xml_vers[0]]
-            xml_info = client.release_data(pkg_name, xml_vers[0])
-            if 'requires_dist' in xml_info:
+            pkg_ver = xml_vers[0]
+            xml_info = self.client.release_data(pkg[0], pkg_ver)
+            if 'requires_dist' in xml_info.keys():
                 for requires in xml_info['requires_dist']:
-                    req_pkg = self.parse_pypi_requires(requires)
-                    self.exts_processed[pkg_name].append(req_pkg)
-                    # print("requires_dist:",req)
+                    if "=='win32'" in requires or '=="win32"' in requires:
+                        continue 
+                    pkg_name = self.parse_pypi_requires(requires)
+                    depends.append(pkg_name)
+                print("%s requires_dist: " % pkg[0]),
+                print(', '.join(depends))
         else:
-            print("Warning: could not find Python package:", pkg_name)
+            self.depend_exclude.append(pkg[0])
+            print("Warning: %s Not in PyPi. No depdancy checking performed" % pkg[0])
+            pkg_ver = 'not found'
+        return pkg_ver, depends
 
 
 if __name__ == '__main__':
