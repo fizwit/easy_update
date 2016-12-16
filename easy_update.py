@@ -20,10 +20,14 @@ class ExtsList(object):
     for each package.
     """
 
+    """Issues:  Pypi dependancy checking - check for extas=='all'
+       Not all Python modules usr tar.gz so modules added can be incorrect.
+    """
     def __init__(self, file_name, add_packages, verbose):
         self.add_packages = add_packages
         self.verbose = verbose
         self.debug = True
+        self.code = None
         self.ext_list_len = 0
         self.ext_counter = 0
         self.pkg_update = 0 
@@ -146,7 +150,7 @@ class ExtsList(object):
         self.out.write(self.code[self.ptr_head:indx])
         self.ptr_head = indx
 
-    def rewriteExtension(self, pkg):
+    def rewrite_extension(self, pkg):
         name_indx = self.code[self.ptr_head:].find(pkg[0])
         name_indx += self.ptr_head + len(pkg[0]) + 1
         indx = self.code[name_indx:].find("'") + name_indx + 1
@@ -171,7 +175,7 @@ class ExtsList(object):
                 continue
             action = extension.pop()
             if action == 'keep' or action == 'update':
-                self.rewriteExtension(extension)
+                self.rewrite_extension(extension)
                 # sys.exit(0)
             elif action == 'duplicate':
                 print("duplicate: %s" % extension[0])
@@ -196,6 +200,7 @@ class ExtsList(object):
 class R(ExtsList):
     def __init__(self, file_name, add_packages, verbose):
         ExtsList.__init__(self, file_name, add_packages, verbose)
+        self.bioc_data = {}
         self.depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats', 
                                'stats4', 'graphics', 'grDevices', 'tools', 
                                'tcltk', 'grid', 'splines']
@@ -229,7 +234,6 @@ class R(ExtsList):
     def read_bioconductor_pacakges(self):
             """ read the Bioconductor package list into bio_data dict
             """
-            self.bioc_data = {}
             bioc_urls = {'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
                          'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
                          'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json'}
