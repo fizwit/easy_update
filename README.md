@@ -3,7 +3,7 @@ easy_update is a tool to help maintain EasyBuild easyconfig files for Python, R 
 
 ### Usage
 easy_update takes a single argument which is the path to an easyconfig
-file.  A new easyconfig is written written to the same filename with the file extension of .update
+file.  A new easyconfig is written to the same filename with the file extension of .update
 
 ~~~
 ./easy_build.py Python-2.7.12-foss-2016b --verbose
