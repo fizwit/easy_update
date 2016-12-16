@@ -29,8 +29,11 @@ def parse_pypi_requires(pkg_name, requires):
     extra = ''
     require_re = '^([A-Za-z0-9_\-\.]+)(?:.*)$'
     extra_re =   "and\sextra\s==\s'([A-Za-z0-9_\-\.]+)'"  # only if the 
+    targets = ['python_version', 'sys_platform', 'extra'] 
     ans = re.search(require_re, requires)
     name = ans.group(1)
+    test = False    # do we need to test extra requires field?
+    state = True
 
     version = requires.split(';')
     if len(version) > 1:
@@ -40,17 +43,15 @@ def parse_pypi_requires(pkg_name, requires):
                  if target == 'extra':
                      extra = re.search(extra_re, version[1])
                      extra = extra.group(1) if extra else None
-                     if extra not in [i[0] for i in self.exts_processed]:
-                         extra = None
         if test:
             state = eval(version[1])
     if state:
-        print('Install!    depend: package: %s, requires: %s,  eval: %r, Expression: %s\n' % (
-                pkg_name, name, state, requires) )
+        print('Install!    depend: package: %s, eval: %r, Expression: %s' % (
+                name, state, requires) )
         return name
     else:
-        print('No install: depend: package: %s, requires: %s,  eval: %r, Expression: %s\n' % (
-                pkg_name, name, state, requires) )
+        print('No install: depend: package: %s, eval: %r, Expression: %s' % (
+                name, state, requires) )
         return None
 
 def get_python_info(client, pkg_name):
@@ -58,16 +59,26 @@ def get_python_info(client, pkg_name):
        pkg is a list; ['package name', 'version', 'other stuff']
        return the version number for the package and a list of dependancie
     """
+    indent4 = '    '
     depends = []
     xml_vers = client.package_releases(pkg_name)
     if xml_vers:
         pkg_ver = xml_vers[0]
         xml_info = client.release_data(pkg_name, pkg_ver)
         print("%s %s \n" % (pkg_name, pkg_ver)),
-        if 'download_url' in xml_info.keys():
-            print(' download_url: %s' % xml_info['download_url'])
-        else:
-            print
+        info = client.release_urls(pkg_name, pkg_ver)
+        found = False
+        for url in info:
+            if url['url'].endswith('.gz') or (
+                url['url'].endswith('.zip')):
+                URL = url['url']
+                print 'wget ', URL 
+                found = True
+            if url['filename'].endswith('.gz') or (
+                url['filename'].endswith('.zip')):
+                print('filename: %s' % url['filename'])
+        if not found:
+            print('Error url not found!')
         if 'requires_dist' in xml_info.keys():
             print("%s requires_dist: " % pkg_name)
             for requires in xml_info['requires_dist']:
@@ -76,6 +87,10 @@ def get_python_info(client, pkg_name):
                     depends.append(pkg)
     else:
         print("Warning: %s Not in PyPi. No depdancy checking performed" % pkg_name)
+    print("%s('%s', '%s', {" % (indent4, pkg_name, pkg_ver))
+    print("%s%s'source_url': [%s]," % (indent4, indent4, URL))
+    print("%s)}," % indent4 )
+
 
 
 if __name__ == '__main__':
