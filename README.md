@@ -15,7 +15,8 @@ Add flags to the end of the command: ``easy_update.py Python-2.7.12-foss-2016b.e
 
 ``--verbose output status of every module to standard out``
 
-```--add [filename]  Add additional modules to the updated easyconfig file.
+```
+--add [filename]  Add additional modules to the updated easyconfig file.
     Place a single module name on each line of the file. Version numbers are not required.
 ```
 
