@@ -16,8 +16,8 @@ Add flags to the end of the command: ``easy_update.py Python-2.7.12-foss-2016b.e
 ```
 --verbose output the action that will be taken for each module along with the version number.
     Possible actions are 'keep', 'update', 'new' or 'duplicate'
-    'keep' no changes need to be made to the version 
-    'update' there is new version availble for the module
+    'keep' no changes need to be made to the package 
+    'update' there is new version availble for the package
     'new' A new package will be added. This is the result of finding dependancies.
     'duplicate'  A duplicate package name has been found.
 
