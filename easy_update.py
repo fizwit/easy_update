@@ -13,25 +13,25 @@ import xmlrpclib
 
 class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild
-    easyconfig files for R, Python and Bioconductor.  R, Python and Bioconductor
-    langueges support package extensions.  Easyconfig supports the building of
-    the language with a list of extions. This program automates the the updating
-    of extension lists for R and Python by using API for resolving current version
-    for each package.
+    easyconfig files for R, Python and Bioconductor.  R, Python and
+    Bioconductor langueges support package extensions.  Easyconfig supports
+    the building of the language with a list of extions. This program automates
+    the the updating of extension lists for R and Python by using API for
+    resolving current version for each package.
     """
 
     """Issues
-       There are many small inconsistancies with Pypi which make it difficult to
-       fully automate building of easyconfig files.
-       - dependancy checking - check for extas=='all'
+       There are many small inconsistancies with PyPI which make it difficult
+       to fully automate building of easyconfig files.
+       - dependancy checking - check for extras=='all'
        - Not all Python modules usr tar.gz so modules added can be incorrect.
-       - pypi projects names to not always  module names and or file names:
+       - pypi projects names do not always match module names and or file names
          project: liac-arff, module: arff,  file_name: liac_arff.zip
     """
     def __init__(self, file_name, add_packages, verbose):
         self.add_packages = add_packages
         self.verbose = verbose
-        self.debug = False 
+        self.debug = False
         self.code = None
         self.ext_list_len = 0
         self.ext_counter = 0
@@ -63,9 +63,12 @@ class ExtsList(object):
             pass
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
-            sys.stderr.write("Warning: file name does not match easybuild module name"),
-            sys.stderr.write(" file name: %s, module name: %s" % (f_name, self.pkg_name))
-            sys.stderr.write("Writing output to: %s" % self.pkg_name + '.update')
+            sys.stderr.write("Warning: file name does not match easybuild " +
+                             "module name"),
+            sys.stderr.write(" file name: %s, module name: %s" % (
+                             f_name, self.pkg_name))
+            sys.stderr.write('Writing output to: %s' % self.pkg_name +
+                             '.update')
         self.out = open(self.pkg_name + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
@@ -217,11 +220,12 @@ class R(ExtsList):
             for dep in self.dependencies:
                 if dep[0] == 'R':
                     R_name = dep[0] + '-' + dep[1] + '-'
-                    R_name += self.toolchain['name'] + '-' + self.toolchain['version']
+                    R_name += (self.toolchain['name'] + '-' +
+                               self.toolchain['version'])
                     if len(dep) > 2:
                         R_name += dep[2]
                     R_name += '.eb'
-                    print('Required R module: %s'% R_name)
+                    print('Required R module: %s' % R_name)
                     if os.path.dirname(file_name):
                         R_name = os.path.dirname(file_name) + '/' + R_name
                     eb = self.parse_eb(R_name, primary=False)
@@ -246,7 +250,7 @@ class R(ExtsList):
                 try:
                     response = urllib2.urlopen(url)
                 except IOError as e:
-                    print('URL request: %s'% url)
+                    print('URL request: %s' % url)
                     sys.exit(e)
                 self.bioc_data.update(json.loads(response.read()))
 
@@ -273,16 +277,18 @@ class R(ExtsList):
     def check_BioC(self, pkg):
         """Extract <Depends> and <Imports> from BioCondutor json metadata
         Example:
-        bioc_data['pkg']['Depends'] [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
-        bioc_data['pkg']['Depends'] ['Imports'] [ 'Biobase', 'graphics']
+        bioc_data['pkg']['Depends'][u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
+        bioc_data['pkg']['Depends']['Imports'] [ 'Biobase', 'graphics']
         """
         depends = []
         if pkg[0] in self.bioc_data:
             pkg_ver = self.bioc_data[pkg[0]]['Version']
             if 'Depends' in self.bioc_data[pkg[0]]:
-                depends = [re.split('[ (><=,]', s)[0] for s in self.bioc_data[pkg[0]]['Depends']]
+                depends = [re.split('[ (><=,]', s)[0]
+                           for s in self.bioc_data[pkg[0]]['Depends']]
             if 'Imports' in self.bioc_data[pkg[0]]:
-                depends = [re.split('[ (><=,]', s)[0] for s in self.bioc_data[pkg[0]]['Imports']]
+                depends = [re.split('[ (><=,]', s)[0]
+                           for s in self.bioc_data[pkg[0]]['Imports']]
         else:
             pkg_ver = "not found"
         return pkg_ver, depends
@@ -322,7 +328,8 @@ class PythonExts(ExtsList):
         input: 'numpy (>=1.7.1)'  output: 'numpy'
 
         Test that <python_version> and <sys_platform> conform.
-        If <extra> is present and required check that extra is contained in "exts_list".
+        If <extra> is present and required check that extra is contained
+        in "exts_list".
         wincertstore (==0.2); sys_platform=='win32' and extra == 'ssl'
         futures (>=3.0); (python_version=='2.7' or python_version=='2.6')
         requests-kerberos (>=0.6); extra == 'kerberos'
@@ -356,13 +363,13 @@ class PythonExts(ExtsList):
             if self.debug:
                 if name not in [i[0] for i in self.exts_processed] and (
                    name not in self.depend_exclude):
-                    print('Add dependent package: %s  for: %s, Expression: %s' % (
-                          name, pkg_name, requires))
+                    print('Add dependent package: %s ' % name +
+                          'for: %s, Expression: %s' % (pkg_name, requires))
             return name
         else:
             if self.debug:
-                print('Do not install: %s, for package: %s, Expression: %s' % (
-                    name, pkg_name, requires))
+                print('Do not install: %s, ' % name +
+                      'for package: %s, Expression: %s' % (pkg_name, requires))
             return None
 
     def get_package_info(self, pkg):
