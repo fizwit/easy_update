@@ -13,10 +13,11 @@ easy_update takes a single argument which is the path to an easyconfig file.  A 
 Add flags to the end of the command: ``easy_update.py Python-2.7.12-foss-2016b.eb --verbose``
 
 
-> --verbose output status of every module to standard out
+``--verbose output status of every module to standard out``
 
-> --add [filename]  Add additional modules to the updated easyconfig file. 
->> Place a single module name on each line of the file. Version numbers are not required.
+```--add [filename]  Add additional modules to the updated easyconfig file.
+    Place a single module name on each line of the file. Version numbers are not required.
+```
 
 ### TODO
 Accept arguments to update the ``--version``, ``--versionsuffix`` and ``--toolchain``. Write a new easyconfig with the updated content and updated version information.
