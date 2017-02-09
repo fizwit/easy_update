@@ -171,7 +171,9 @@ class ExtsList(object):
         """ this needs to be re-written correctly
             use source text as pattern
         """
-        indx = self.code.find('exts_list') + len('exts_list')
+        indx = self.code.find('exts_list')
+        indx += self.code[indx:].find('[')
+        indx += self.code[indx:].find('\n') + 1
         self.write_chunk(indx)
 
         for extension in self.exts_processed:
