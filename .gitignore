@@ -1,3 +1,6 @@
+output
+.idea
+.idea/*
 *.pyc
 *.eb
 *.update

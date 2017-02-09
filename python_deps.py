@@ -54,7 +54,7 @@ def parse_pypi_requires(pkg_name, requires):
                 name, state, requires) )
         return None
 
-def get_python_info(client, pkg_name):
+def get_package_info(client, pkg_name):
     """Python pypi API for package version and dependancy list 
        pkg is a list; ['package name', 'version', 'other stuff']
        return the version number for the package and a list of dependancie
@@ -66,9 +66,9 @@ def get_python_info(client, pkg_name):
         pkg_ver = xml_vers[0]
         xml_info = client.release_data(pkg_name, pkg_ver)
         print("%s %s \n" % (pkg_name, pkg_ver)),
-        info = client.release_urls(pkg_name, pkg_ver)
+        url_info = client.release_urls(pkg_name, pkg_ver)
         found = False
-        for url in info:
+        for url in url_info:
             if url['url'].endswith('.gz') or (
                 url['url'].endswith('.zip')):
                 URL = url['url']
@@ -80,16 +80,17 @@ def get_python_info(client, pkg_name):
         if not found:
             print('Error url not found!')
         if 'requires_dist' in xml_info.keys():
-            print("%s requires_dist: " % pkg_name)
             for requires in xml_info['requires_dist']:
-                pkg = parse_pypi_requires(pkg_name, requires)
-                if pkg:
-                    depends.append(pkg)
+                pkg_requires = parse_pypi_requires(pkg_name, requires)
+                if pkg_requires:
+                    print("  required: %s" % pkg_requires) 
+
+        print("\n%s('%s', '%s', {" % (indent4, pkg_name, pkg_ver))
+        print("%s%s'source_url': [%s]," % (indent4, indent4, URL))
+        print("%s)}," % indent4 )
     else:
         print("Warning: %s Not in PyPi. No depdancy checking performed" % pkg_name)
-    print("%s('%s', '%s', {" % (indent4, pkg_name, pkg_ver))
-    print("%s%s'source_url': [%s]," % (indent4, indent4, URL))
-    print("%s)}," % indent4 )
+        
 
 
 
@@ -99,4 +100,4 @@ if __name__ == '__main__':
         sys.exit(0)
 
     client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
-    get_python_info(client, sys.argv[1])
+    get_package_info(client, sys.argv[1])

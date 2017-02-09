@@ -31,7 +31,7 @@ class ExtsList(object):
     def __init__(self, file_name, add_packages, verbose):
         self.add_packages = add_packages
         self.verbose = verbose
-        self.debug = True
+        self.debug = False 
         self.code = None
         self.ext_list_len = 0
         self.ext_counter = 0
@@ -61,12 +61,11 @@ class ExtsList(object):
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
-        print "Package name:", self.pkg_name
+        print("Package name: %s" % self.pkg_name)
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
-            print("file name does not match easybuild module name"),
-            print(" file name: %s, module name: %s" % (f_name, self.pkg_name))
-            sys.exit(0)
+            sys.stderr.write("Warning: file name does not match easybuild module name"),
+            sys.stderr.write(" file name: %s, module name: %s" % (f_name, self.pkg_name))
         self.out = open(self.pkg_name + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
@@ -84,8 +83,8 @@ class ExtsList(object):
             code += f.read()
         try:
             exec (code, eb.__dict__)
-        except Exception, e:
-            print "interperting easyconfig error: %s" % e
+        except Exception as err:
+            print("interperting easyconfig error: %s" % err)
         if primary:     # save original text of source code
             self.code = code
             self.ptr_head = len(header)
@@ -191,15 +190,15 @@ class ExtsList(object):
                 continue
             elif action == 'new':
                 if self.bioconductor and extension[2] == 'ext_options':
-                    print " CRAN depencancy: " + extension[0]
+                    print(" CRAN depencancy: %s" % extension[0])
                 else:
                     self.out.write("%s('%s', '%s', %s),\n" % (self.indent,
                                                               extension[0],
                                                               extension[1],
                                                               extension[2]))
         self.out.write(self.code[self.ptr_head:])
-        print "Updated Packages: %d" % self.pkg_update
-        print "New Packages: %d" % self.pkg_new
+        print("Updated Packages: %d" % self.pkg_update)
+        print("New Packages: %d" % self.pkg_new)
 
 
 class R(ExtsList):
@@ -222,7 +221,7 @@ class R(ExtsList):
                     if len(dep) > 2:
                         R_name += dep[2]
                     R_name += '.eb'
-                    print 'Required R module: ', R_name
+                    print('Required R module: %s'% R_name)
                     if os.path.dirname(file_name):
                         R_name = os.path.dirname(file_name) + '/' + R_name
                     eb = self.parse_eb(R_name, primary=False)
@@ -247,7 +246,7 @@ class R(ExtsList):
                 try:
                     response = urllib2.urlopen(url)
                 except IOError as e:
-                    print 'URL request: ', url
+                    print('URL request: %s'% url)
                     sys.exit(e)
                 self.bioc_data.update(json.loads(response.read()))
 
@@ -385,7 +384,7 @@ class PythonExts(ExtsList):
                         depends.append(pkg_requires)
         else:
             self.depend_exclude.append(pkg[0])
-            print("Warning: %s Not in PyPi. No depdancy checking performed" % pkg[0])
+            sys.stderr.write("Warning: %s Not in PyPi. No depdancy checking performed\n" % pkg[0])
             pkg_ver = 'not found'
         return pkg_ver, depends
 
@@ -426,7 +425,7 @@ if __name__ == '__main__':
     elif file_name[:7] == 'Python-':
         module = PythonExts(sys.argv[1], add_packages, verbose=vflag)
     else:
-        print "Module name must begin with R- or Python-"
+        print("Module name must begin with R- or Python-")
         sys.exit(1)
     module.update_exts()
     module.print_update()
