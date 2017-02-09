@@ -1,5 +1,5 @@
 # easy_update
-easy_update is a tool to help maintain EasyBuild easyconfig files for Python, R and Bioconductor. Easy_update updates the versions of each module from the ext_list of easyconfig files. Native API calls are used for each language to check for new versions of packages. Easy_update also checks for dependencies recursively and adds any missing dependent modules to the ext_list. If you support R and Python easyconfigs with hundreds of modules this tool will save you many hours of work. If you have been maintaining package lists by had easy_build my re-order your exts_list based on the correct decency chain. 
+easy_update is a tool to help maintain EasyBuild easyconfig files for Python, R and Bioconductor. Easy_update updates the versions of each module from the ext_list of easyconfig files. Native API calls are used for each language to check for new versions of packages. Easy_update also checks for dependencies recursively and adds any missing dependent modules to the ext_list. If you support R and Python easyconfigs with hundreds of modules this tool will save you many hours of work. If you have been maintaining package lists by hand easy_build may re-order your exts_list based on the correct dependency chain. 
 
 ### Usage
 easy_update takes a single argument which is the path to an easyconfig
