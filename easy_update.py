@@ -61,11 +61,11 @@ class ExtsList(object):
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
-        print("Package name: %s" % self.pkg_name)
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
             sys.stderr.write("Warning: file name does not match easybuild module name"),
             sys.stderr.write(" file name: %s, module name: %s" % (f_name, self.pkg_name))
+            sys.stderr.write("Writing output to: %s" % self.pkg_name + '.update')
         self.out = open(self.pkg_name + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
