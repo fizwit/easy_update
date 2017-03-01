@@ -10,14 +10,15 @@ import urllib2
 import xmlrpclib
 
 __author__ = "John Dey"
-__version__ = "1.0"
+__version__ = "1.0.1"
 __email__ = "jfdey@fredhutch.org"
 
 
 class ExtsList(object):
-    """ Easy Anotate is a utilty program for documenting EasyBuild easyconfig files for R and Python.
-      Easyconfig files for R and Python can have over a hundred modules in an ext_list.  This program creates
-      html documentation of extension list.
+    """ Easy Anotate is a utilty program for documenting EasyBuild easyconfig
+    files for R and Python. Easyconfig files for R and Python can have over
+    a hundred modules in an ext_list.  This program creates
+    html documentation of extension list.
     """
 
     def __init__(self, file_path, verbose=False):
@@ -25,41 +26,39 @@ class ExtsList(object):
         self.pkg_count = 0
 
         file_name = os.path.basename(file_path)
-        if file_name[:21] == 'R-bundle-Bioconductor':
-            self.out = open('Bioconductor.html', 'w')
-        elif file_name[:2] == 'R-':
-            self.out = open('R.html', 'w')
-        elif file_name[:8] == 'Python-2':
-            self.out = open('Python2.html', 'w')
-        elif file_name[:8] == 'Python-3':
-            self.out = open('Python3.html', 'w')
-        else:
-            print "Module name must begin with R-, R-bundle-Bioconductor or Python-"
+        if (file_name[:21] != 'R-bundle-Bioconductor' or
+           file_name[:2] != 'R-' or
+           file_name[:7] != 'Python-'):
+            print("Module name must begin with R-, or Python-")
             sys.exit(1)
 
         eb = self.parse_eb(file_path)
         self.extension = eb.exts_list
         self.toolchain = eb.toolchain
         self.dependencies = eb.dependencies
-        self.pkg_name = eb.name + '-' + eb.version
-        self.pkg_name += '-' + eb.toolchain['name'] + '-' + eb.toolchain['version']
+        self.pkg_name = eb.name + '-' + eb.version + '-'
+        self.pkg_name += eb.toolchain['name'] + '-'
+        self.pkg_name += eb.toolchain['version']
         try:
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
-        print "Package:", self.pkg_name
+        print("Package: %s" % self.pkg_name)
         self.html_header()
 
         f_name = os.path.basename(file_name)[:-3]
         if f_name != self.pkg_name:
-            print "file name does not match module. file name: ", f_name, " package: ", self.pkg_name
+            print("file name does not match module name. " +
+                  "file name: %s, package: %s" % (f_name, self.pkg_name))
             sys.exit(0)
+        self.out = open(f_name + '.html', 'w')
 
     @staticmethod
     def parse_eb(file_path):
         # type: (object) -> object file_name) -> dict:
-        """ interpret easyconfig file with 'exec'.  Interperting fails if constants that are not defined within the
-            Easyconfig file.  Add undefined constants it <header>.
+        """ interpret easyconfig file with 'exec'.  Interperting fails if
+            undefined constants are within the Easyconfig file.
+            Add undefined constants to <header>.
         """
         header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
         header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
@@ -71,7 +70,7 @@ class ExtsList(object):
         try:
             exec (code, eb.__dict__)
         except Exception, e:
-            print "interperting easyconfig error: %s" % e
+            print("interperting easyconfig error: %s" % e)
             eb = {}
         return eb
 
@@ -83,7 +82,8 @@ class ExtsList(object):
 <html>
 <head>
   <title>Fred Hutchinson Cancer Research Center</title>
-  <title>EasyBuild Annotate extension list for R, Biocondotor and Python easyconfig files</title>
+  <title>EasyBuild Annotate extension list for R, Biocondotor and
+ Python easyconfig files</title>
   <style>
     body {font-family: Helvetica,Arial,"Calibri","Lucida Grande",sans-serif;}
     .ext_list a {color: black; text-decoration: none; font-weight: bold;}
@@ -94,7 +94,8 @@ class ExtsList(object):
 <body>
 """
         self.out.write(block)
-        self.out.write('<h2><span class="fh_green">%s</span></h2>' % self.pkg_name)
+        self.out.write('<h2><span class="fh_green">%s</span></h2>' %
+                       self.pkg_name)
         self.out.write('<h3>Package List</h3>\n<div class="ext_list">\n')
 
     def exts2html(self):
@@ -110,9 +111,11 @@ class ExtsList(object):
                 version = 'built in'
                 url, description = 'not found', ''
             if url == 'not found':
-                self.out.write('    <li>%s&emsp;%s</li>\n' % (pkg_name, version))
+                self.out.write('    <li>%s&emsp;%s</li>\n' %
+                               (pkg_name, version))
             else:
-                self.out.write('    <li><a href="%s">%s-%s</a>&emsp;%s</li>\n' % (url, pkg_name, version, description))
+                self.out.write('    <li><a href="%s">%s-%s</a>&emsp;%s</li>\n'
+                               % (url, pkg_name, version, description))
         self.out.write('  </ul>\n</div>\n</body></html>')
 
     def get_package_url(self, pkg_name):
@@ -120,8 +123,10 @@ class ExtsList(object):
 
 
 class R(ExtsList):
-    depend_exclude = {'R', 'parallel', 'methods', 'utils', 'stats', 'stats4', 'graphics', 'grDevices',
-                      'tools', 'tcltk', 'grid', 'splines'}
+    depend_exclude = {'R', 'parallel', 'methods', 'utils',
+                      'stats', 'stats4', 'graphics', 'grDevices',
+                      'tools', 'tcltk', 'grid', 'splines'
+                      }
 
     def __init__(self, file_name, verbose=False):
         ExtsList.__init__(self, file_name, verbose)
@@ -138,12 +143,18 @@ class R(ExtsList):
         """ read the Bioconductor package list into bio_data dict
             """
         self.bioc_urls = [
-            ['packages', 'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
-             'https://bioconductor.org/packages/release/bioc/html/'],
-            ['annotation', 'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
-             'https://bioconductor.org/packages/release/data/annotation/html/'],
-            ['experiment', 'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json',
-             'https://bioconductor.org/packages/release/data/experiment/html/']
+            ['packages',
+             'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
+             'https://bioconductor.org/packages/release/bioc/html/'
+             ],
+            ['annotation',
+             'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
+             'https://bioconductor.org/packages/release/data/annotation/html/'
+             ],
+            ['experiment',
+             'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json',
+             'https://bioconductor.org/packages/release/data/experiment/html/'
+             ]
         ]
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -152,7 +163,7 @@ class R(ExtsList):
             try:
                 response = urllib2.urlopen(url[1], context=ctx)
             except IOError as e:
-                print 'URL request: ', url[1]
+                print('URL request: %s' % url[1])
                 sys.exit(e)
             self.bioc_data[url[0]] = json.loads(response.read())
 
@@ -174,8 +185,12 @@ class R(ExtsList):
         return url, description
 
     def check_BioC(self, pkg_name):
-        """ example bioc_data['pkg']['Depends'] [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
-                                    ['Imports'] [ 'Biobase', 'graphics', 'grDevices', 'venn', 'mclust', 'utils', 'MASS']
+        """ example:
+            bioc_data['pkg']['Depends']
+                     [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
+                     ['Imports']
+                     ['Biobase', 'graphics', 'grDevices', 'venn', 'mclust',
+                      'utils', 'MASS']
         """
         url = 'not found'
         for bioc_pkg in self.bioc_urls:
@@ -220,7 +235,7 @@ class PythonExts(ExtsList):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "usage: %s [R or Python easybuild file]" % sys.argv[0]
+        print("usage: %s [R or Python easybuild file]" % sys.argv[0])
         sys.exit(0)
 
     base = os.path.basename(sys.argv[1])
@@ -229,6 +244,6 @@ if __name__ == '__main__':
     elif base[:7] == 'Python-':
         module = PythonExts(sys.argv[1], verbose=True)
     else:
-        print "Module name must begin with R-, R-bundle-Bioconductor or Python-"
+        print("Module name must begin with R-, or Python-")
         sys.exit(1)
     module.exts2html()
