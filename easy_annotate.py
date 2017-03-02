@@ -5,6 +5,7 @@ import sys
 import imp
 import json
 import ssl
+from datetime import datetime
 import requests
 import urllib2
 import xmlrpclib
@@ -25,13 +26,6 @@ class ExtsList(object):
         self.verbose = verbose
         self.pkg_count = 0
 
-        file_name = os.path.basename(file_path)
-        if (file_name[:21] != 'R-bundle-Bioconductor' or
-           file_name[:2] != 'R-' or
-           file_name[:7] != 'Python-'):
-            print("Module name must begin with R-, or Python-")
-            sys.exit(1)
-
         eb = self.parse_eb(file_path)
         self.extension = eb.exts_list
         self.toolchain = eb.toolchain
@@ -43,15 +37,15 @@ class ExtsList(object):
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
-        print("Package: %s" % self.pkg_name)
-        self.html_header()
-
+        file_name = os.path.basename(file_path)
         f_name = os.path.basename(file_name)[:-3]
+        print("Package: %s" % self.pkg_name)
         if f_name != self.pkg_name:
             print("file name does not match module name. " +
                   "file name: %s, package: %s" % (f_name, self.pkg_name))
             sys.exit(0)
         self.out = open(f_name + '.html', 'w')
+        self.html_header()
 
     @staticmethod
     def parse_eb(file_path):
@@ -94,29 +88,42 @@ class ExtsList(object):
 <body>
 """
         self.out.write(block)
-        self.out.write('<h2><span class="fh_green">%s</span></h2>' %
+        self.out.write('<h2><span class="fh_green">%s</span></h2>\n' %
                        self.pkg_name)
         self.out.write('<h3>Package List</h3>\n<div class="ext_list">\n')
 
     def exts2html(self):
-        self.out.write('  <ul style="list-style-type:none">')
+        self.out.write('  <ul style="list-style-type:none">\n')
+        pkg_info = {}
         for pkg in self.extension:
             if isinstance(pkg, tuple):
                 pkg_name = pkg[0]
                 version = str(pkg[1])
                 url, description = self.get_package_url(pkg_name)
-
             else:
                 pkg_name = pkg
                 version = 'built in'
                 url, description = 'not found', ''
-            if url == 'not found':
+            pkg_info[pkg_name] = {}
+            pkg_info[pkg_name]['version'] = version
+            pkg_info[pkg_name]['url'] = url
+            pkg_info[pkg_name]['description'] = description
+        pkg_list = pkg_info.keys()
+        pkg_list.sort()
+        for key in pkg_list:
+            if pkg_info[key]['url'] == 'not found':
                 self.out.write('    <li>%s&emsp;%s</li>\n' %
-                               (pkg_name, version))
+                               (key, pkg_info[key]['version']))
             else:
                 self.out.write('    <li><a href="%s">%s-%s</a>&emsp;%s</li>\n'
-                               % (url, pkg_name, version, description))
-        self.out.write('  </ul>\n</div>\n</body></html>')
+                               % (pkg_info[key]['url'],
+                                  key,
+                                  pkg_info[key]['version'],
+                                  pkg_info[key]['description']))
+        self.out.write('  </ul>\n</div>\n')
+        self.out.write('  updated: %s\n' %
+                       "{:%B %d, %Y}".format(datetime.now()))
+        self.out.write('</body></html>\n')
 
     def get_package_url(self, pkg_name):
         pass
