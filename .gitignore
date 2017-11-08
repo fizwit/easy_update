@@ -1,5 +1,7 @@
-*.pyc
-*.eb
-*.update
-*.txt
+.idea
+.idea/*
 *.html
+*.eb
+*.pyc
+*.json
+.idea
