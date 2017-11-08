@@ -17,23 +17,16 @@ class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild
     easyconfig files for R, Python and Bioconductor.  R, Python and
     Bioconductor langueges support package extensions.  Easyconfig supports
-    the building of the language with a list of extions. This program automates
-    the the updating of extension lists for R and Python by using API for
-    resolving current version for each package.
+    the building of the language with a list of extions. This program
+    automates the the updating of extension lists for R and Python by using
+    API for resolving current version for each package.
 
-    command line arguments -> arguments
-    --add [file] ->add_packages. add_packages is a list of package names to
-          be added to exts_list.
-    --check [package name] -> package.  If package is not None just check
-            this one package and exit.
+    Note: At the FredHutch BioCondutor packages are merged with R.
+    An earlier version of easy_update built BioCondutor in a seperate package.
+    """
 
-    Issues
-       There are many small inconsistancies with PyPI which make it difficult
-       to fully automate building of easyconfig files.
-       - dependency checking - check for extras=='all'
-       - Not all Python modules usr tar.gz so modules added can be incorrect.
-       - pypi projects names do not always match module names and or file names
-         project: liac-arff, module: arff,  file_name: liac_arff.zip
+    """Issues:  Pypi dependancy checking - check for extas=='all'
+       Not all Python modules usr tar.gz so modules added can be incorrect.
     """
     def __init__(self, file_name, add_packages, package, verbose):
         self.verbose = verbose
@@ -65,9 +58,7 @@ class ExtsList(object):
         self.pkg_name += '-' + eb.toolchain['name']
         self.pkg_name += '-' + eb.toolchain['version']
         self.pkg_version = eb.version
-        self.bioconductor = False
 
-        # compare easyconfig name with file name
         try:
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
@@ -196,16 +187,8 @@ class ExtsList(object):
         if self.verbose > 0:
             if len(pkg) < 4:
                 print("Error:"),
-            if pkg[-1] == 'update':
-                version = '%s -> %s' % (orig_ver, pkg[1])
-            elif pkg[-1] == 'add':
-                version = '%s (add)' % pkg[1]
-            elif pkg[-1] == 'new':
-                version = '%s (new)' % pkg[1]
-            else:
-                version = pkg[1]
-            print("%20s : %-20s [%2d, %d]" % (pkg[0], version,
-                       self.ext_list_len, self.ext_counter))
+            print("%20s : %-8s (%s) [%2d, %d]" % (pkg[0], pkg[1], pkg[-1],
+                  self.ext_list_len, self.ext_counter))
 
     def update_exts(self):
         """
@@ -219,6 +202,10 @@ class ExtsList(object):
                 self.check_package(list(pkg))
             else:
                 self.exts_processed.append(pkg)
+        #  Add new packages to EB file
+        self.pkg_top = None
+        for pkg_name in self.add_packages:
+            self.check_package([pkg_name, 'add'])
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -230,7 +217,8 @@ class ExtsList(object):
         indx = self.code[name_indx:].find("'") + name_indx + 1
         self.write_chunk(indx)
         self.out.write("%s'," % pkg[1])  # write version Number
-        self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
+        self.ptr_head = self.code[self.ptr_head:].find(',') + (
+                        self.ptr_head + 1)
         indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
         self.write_chunk(indx)
 
@@ -264,12 +252,10 @@ class ExtsList(object):
                 self.ptr_head = indx
                 continue
             elif action == 'new':
-                if self.bioconductor and extension[2] == 'ext_options':
-                    print("new: %s Adding CRAN dependency" % extension[0]) 
                 self.out.write("%s('%s', '%s', %s),\n" % (self.indent,
-                                                              extension[0],
-                                                              extension[1],
-                                                              extension[2]))
+                                                          extension[0],
+                                                          extension[1],
+                                                          extension[2]))
         self.out.write(self.code[self.ptr_head:])
         print("Updated Packages: %d" % self.pkg_update)
         print("New Packages: %d" % self.pkg_new)
@@ -279,62 +265,34 @@ class ExtsList(object):
 class R(ExtsList):
     """extend ExtsList class to update package names from CRAN
     """
-    def __init__(self, file_name, add_packages, package, verbose):
-        ExtsList.__init__(self, file_name, add_packages, package, verbose)
-        self.bioc_data = []
+    def __init__(self, file_name, add_packages, verbose):
+        ExtsList.__init__(self, file_name, add_packages, verbose)
+        self.bioc_data = {}
         self.depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats',
                                'stats4', 'graphics', 'grDevices', 'tools',
                                'tcltk', 'grid', 'splines']
-
-        if 'bioconductor' in self.pkg_name.lower():
-            self.bioconductor = True
-            self.R_modules = []
-
-            #  Read the R package list from the dependent R package
-            for dep in self.dependencies:
-                if dep[0] == 'R':
-                    R_name = dep[0] + '-' + dep[1] + '-'
-                    R_name += (self.toolchain['name'] + '-' +
-                               self.toolchain['version'])
-                    if len(dep) > 2:
-                        R_name += dep[2]
-                    R_name += '.eb'
-                    break
-            print('Required R module: %s' % R_name)
-            if os.path.dirname(file_name):
-                path = os.path.dirname(file_name)
-                if len(path) > 0: 
-                    R_name = path + '/' + R_name
-                eb = self.parse_eb(R_name, primary=False)
-            for pkg in eb.exts_list:
-                if isinstance(pkg, tuple):
-                    self.R_modules.append(pkg[0])
-                else:
-                    self.R_modules.append(pkg)
-            if self.verbose > 1:
-                print('Read %d modules from R easyconfig: %s' % (
-                       len(self.R_modules), R_name))
+        if eb.biocver:
+            self.read_bioconductor_pacakges()
         else:
-            self.bioconductor = False
-        if self.biocver > 0:
-            self.read_bioconductor_pacakges(self.biocver)
+            print('BioCondutor verserion: biocver not set')
+            sys.exit(1)
 
-    def read_bioconductor_pacakges(self, version):
-            """ read the Bioconductor package list into bio_data dict
-            """
-            base_url = 'https://bioconductor.org/packages/json/%s' % version
-            bioc_urls = ['%s/bioc/packages.json' % base_url,
-                         '%s/data/annotation/packages.json' % base_url,
-                         '%s/data/experiment/packages.json' % base_url
-                         ]
-            self.bioc_data = {}
-            for url in bioc_urls:
-                try:
-                    response = urllib2.urlopen(url)
-                except IOError as e:
-                    print('URL request: %s' % url)
-                    sys.exit(e)
-                self.bioc_data.update(json.loads(response.read()))
+    def read_bioconductor_pacakges(self):
+        """ read the Bioconductor package list into bio_data dict
+        """
+        base_path = 'https://bioconductor.org/packages/json/'
+        bioc_urls = ['%s/bioc/packages.json' % (base_path, biocver),
+                     '%s/data/annotation/packages.json' % (base_path, biocver,)
+                     '%s/data/experiment/packages.json' % (base_path, biocver)]
+        self.bioc_data = {}
+        for url in bioc_urls:
+            try:
+                response = urllib2.urlopen(url)
+            except IOError as e:
+                print 'URL request: ', url
+                sys.exit(e)
+            self.bioc_data.update(json.loads(response.read()))
+
 
     def check_CRAN(self, pkg):
         cran_list = "http://crandb.r-pkg.org/"
@@ -354,16 +312,14 @@ class R(ExtsList):
             depends = cran_info[u"Depends"].keys()
         if u"Imports" in cran_info:
             depends += cran_info[u"Imports"].keys()
-        if u"LinkingTo" in cran_info:
-            depends += cran_info[u"LinkingTo"].keys()
         return pkg_ver, depends
 
     def check_BioC(self, pkg):
         """Extract <Depends> and <Imports> from BioCondutor json metadata
         Example:
         bioc_data['pkg']['Depends']
-                 [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
-        bioc_data['pkg']['Depends']['Imports'] [ 'Biobase', 'graphics']
+                    [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
+        bioc_data['pkg']['Depends'] ['Imports'] [ 'Biobase', 'graphics']
         """
         depends = []
         if pkg[0] in self.bioc_data:
@@ -384,27 +340,14 @@ class R(ExtsList):
                 print("%20s : requires %s" % (pkg, p))
 
     def get_package_info(self, pkg):
-        if self.bioconductor:
-            pkg_ver, depends = self.check_BioC(pkg)
-            pkg[2] = 'bioconductor_options'
-            if pkg_ver == 'not found':
-                if pkg[0] in self.R_modules:
-                    return pkg_ver, []
-                pkg_ver, depends = self.check_CRAN(pkg)
-                pkg[2] = 'ext_options'
-        else:
-            if self.debug:
-                print("get_package_info: %s" % pkg)
-            if self.biocver > 0:
-                pkg_ver, depends = self.check_BioC(pkg)
-            if pkg_ver == 'not found':
-                pkg_ver, depends = self.check_CRAN(pkg)
-            if len(pkg) < 3:
-                pkg.append('ext_options')
-            else:
-                pkg[2] = 'ext_options'
+        pkg_ver, depends = self.check_BioC(pkg)
+        pkg[2] = 'bioconductor_options'
+        if pkg_ver == 'not found':
+            pkg_ver, depends = self.check_CRAN(pkg)
+            pkg[2] = 'ext_options'
         if self.verbose > 0:
-            self.print_depends(pkg[0], depends)
+            for p in depends:
+                print("%s requires: %s" % (pkg[0], p))
         return pkg_ver, depends
 
 
@@ -437,7 +380,6 @@ class PythonExts(ExtsList):
         """
         sys_platform = 'Linux'
         python_version = self.python_version
-        platform_python_implementation = ''
         extra = ''
         require_re = '^([A-Za-z0-9_\-\.]+)(?:.*)$'
         extra_re = "and\sextra\s==\s'([A-Za-z0-9_\-\.]+)'"  # only if the
@@ -456,12 +398,14 @@ class PythonExts(ExtsList):
                         extra = extra.group(1) if extra else None
                         if extra not in [i[0] for i in self.exts_processed]:
                             extra = None
+            if test:
+                state = eval(version[1])
         if state:
             if self.debug:
                 if name not in [i[0] for i in self.exts_processed] and (
                    name not in self.depend_exclude):
-                    print('Add dependent package: %s ' % name +
-                          'for: %s, Expression: %s' % (pkg_name, requires))
+                    print('Add dependent package: %s ' % name),
+                    print('for: %s, Expression: %s' % (pkg_name, requires))
             return name
         else:
             if self.debug:
@@ -512,14 +456,13 @@ def get_pypi_info(pkg_name):
 
 def help():
     print("usage: easy_update  easyconfig.eb [flags]")
-    print("easy_update Updates ext_list information of EasyBuild " +
-          "easyconfig  files")
-    print("easy_update works with R, Python and R-bioconductor " +
-          "easyconfig files")
+    print("easy_update Updates ext_list information of EasyBuild"),
+    print(" easyconfig files")
+    print("easy_update works with R, Python and R-bioconductor"),
+    print(" easyconfig files")
     print("  --verbose  diplay status for each package")
-    print("  --add [filename]  filename contains list of package names to add")
-    print("  --check [package name] print update actions for a single package")
-    print("          option is used for debugging single packages")
+    print("  --add [filename]  filename contains list of package"),
+    print(" names to add")
 
 
 def get_package_list(fname, add_packages):

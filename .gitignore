@@ -1,8 +1,8 @@
 output
-.idea
 .idea/*
 *.pyc
 *.eb
 *.update
 *.txt
 *.html
+*.json
