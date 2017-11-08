@@ -37,3 +37,7 @@ Add flags to the end of the command: ``easy_update.py Python-2.7.12-foss-2016b.e
 
 ### TODO
 Accept arguments to update the ``--version``, ``--versionsuffix`` and ``--toolchain``. Write a new easyconfig with the updated content and updated version information.
+
+###Notes
+JSON interface to Pypi: https://pypi.python.org/pypi/package/version/json
+Example: https://pypi.python.org/pypi/scikit-bio/0.5.1/json

@@ -8,8 +8,10 @@ import imp
 import json
 import requests
 import urllib2
-import xmlrpclib
-
+try:
+    import xmlrpclib
+except ImportError:
+    import xmlrpc.client as xmlrpclib
 
 class ExtsList(object):
     """ Extension List Update is a utilty program for maintaining EasyBuild
@@ -28,20 +30,21 @@ class ExtsList(object):
     Issues
        There are many small inconsistancies with PyPI which make it difficult
        to fully automate building of easyconfig files.
-       - dependancy checking - check for extras=='all'
+       - dependency checking - check for extras=='all'
        - Not all Python modules usr tar.gz so modules added can be incorrect.
        - pypi projects names do not always match module names and or file names
          project: liac-arff, module: arff,  file_name: liac_arff.zip
     """
     def __init__(self, file_name, add_packages, package, verbose):
         self.verbose = verbose
-        self.debug = False
+        self.debug = True 
         self.checkpackage = False
         self.code = None
         self.ext_list_len = 0
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
+        self.pkg_drop = 0
 
         self.exts_processed = []  # single list of package names
         self.depend_exclude = []  # built in packages not be added to exts_list
@@ -56,10 +59,12 @@ class ExtsList(object):
         self.toolchain = eb.toolchain
         self.dependencies = eb.dependencies
         self.version = eb.version
+        self.biocver = eb.version
         self.name = eb.name
         self.pkg_name = eb.name + '-' + eb.version
         self.pkg_name += '-' + eb.toolchain['name']
         self.pkg_name += '-' + eb.toolchain['version']
+        self.pkg_version = eb.version
         self.bioconductor = False
 
         # compare easyconfig name with file name
@@ -81,7 +86,6 @@ class ExtsList(object):
             self.exts_orig.append((pkg_name, 'add'))
         if package:
             self.checkpackage = True
-            self.verbose = True
             self.exts_orig = [(package, 'add')]
         else:
             self.out = open(self.pkg_name + ".update", 'w')
@@ -103,34 +107,73 @@ class ExtsList(object):
             exec (code, eb.__dict__)
         except Exception as err:
             print("interperting easyconfig error: %s" % err)
+            sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
             self.ptr_head = len(header)
         return eb
 
     def get_package_info(self, pkg):
+        """base class 
+        subclasses of <get_package_info> search CRAN, Pypi or Bioconductor
+        based on easyconfig.
+        input: pkg - list [pkg_name, pkg_version, source]
+        return: [pkg_version, depends[]]
+        <depends> list of package names that are dependancies
+        look hard for dependant packages, try to match different cases
+        and interchange underscore and dash.  If input package_name
+        does not match rewrite pkg[0] with name found from repository.
+        """
         pass
 
-    def check_package(self, pkg):
-        pkg_name = pkg[0]
+    def is_processed(self, pkg_name):
         if pkg_name in [i[0] for i in self.exts_processed] or (
            pkg_name in self.depend_exclude):
+            return True
+        elif self.bioconductor and pkg_name in self.R_modules:
+            return True
+        else:
+            return False
+
+    def check_package(self, pkg):
+        """base class check_package [this is heart of the program]
+        check pkg is the latest versionif <pkg_version> is the latest version
+
+        input: pkg - list [pkg_name, pkg_version, source]
+        check that all dependancies are meet for each package.
+        check_package can be called recursivly. To track recursion
+        global <self.pkg_top> contains the package name of the original
+        call.
+        """
+        pkg_name = pkg[0]
+        orig_ver = pkg[1]
+        if self.is_processed(pkg_name):
             if pkg_name == self.pkg_top:
                 pkg.append('duplicate')
                 self.exts_processed.append(pkg)
             return
+        if self.verbose > 1:
+            print('check_package: (%s, %s)' % (pkg[0], pkg[1]))
         pkg_ver, depends = self.get_package_info(pkg)
+        if pkg[0] != pkg_name:
+            print("update package name %s -> %s" % (pkg_name, pkg[0]))
+            if self.is_processed(pkg[0]):
+                 return
         if pkg_ver == "error" or pkg_ver == 'not found':
-            if pkg_name == self.pkg_top and pkg[1] != 'add':
+            if pkg[0] == self.pkg_top and pkg[1] != 'add':
                 pkg.append('keep')
             else:
-                sys.stderr.write("Warning: %s Not in CRAN.\n" % pkg_name)
+                self.pkg_drop += 1
+                print("Warning: package %s is " % pkg_name),
+                print("a dependency of %s " % self.pkg_top),
+                print("but can't be found!")
                 return
         else:
             if self.pkg_top == pkg_name and pkg[1] != 'add':
                 if pkg[1] == pkg_ver:
                     pkg.append('keep')
                 else:
+                    orig_ver = pkg[1]
                     pkg[1] = pkg_ver
                     pkg.append('update')
                     self.pkg_update += 1
@@ -147,14 +190,22 @@ class ExtsList(object):
 
         for depend in depends:
             if depend not in self.depend_exclude:
-                self.check_package([depend, 'x'])
+                self.check_package([depend, 'x', 'new package'])
         self.exts_processed.append(pkg)
         self.ext_counter += 1
-        if self.verbose:
+        if self.verbose > 0:
             if len(pkg) < 4:
                 print("Error:"),
-            print("%20s : %-8s (%s) [%2d, %d]" % (pkg[0], pkg[1], pkg[-1],
-                  self.ext_list_len, self.ext_counter))
+            if pkg[-1] == 'update':
+                version = '%s -> %s' % (orig_ver, pkg[1])
+            elif pkg[-1] == 'add':
+                version = '%s (add)' % pkg[1]
+            elif pkg[-1] == 'new':
+                version = '%s (new)' % pkg[1]
+            else:
+                version = pkg[1]
+            print("%20s : %-20s [%2d, %d]" % (pkg[0], version,
+                       self.ext_list_len, self.ext_counter))
 
     def update_exts(self):
         """
@@ -214,15 +265,15 @@ class ExtsList(object):
                 continue
             elif action == 'new':
                 if self.bioconductor and extension[2] == 'ext_options':
-                    print(" CRAN depencancy: %s" % extension[0])
-                else:
-                    self.out.write("%s('%s', '%s', %s),\n" % (self.indent,
+                    print("new: %s Adding CRAN dependency" % extension[0]) 
+                self.out.write("%s('%s', '%s', %s),\n" % (self.indent,
                                                               extension[0],
                                                               extension[1],
                                                               extension[2]))
         self.out.write(self.code[self.ptr_head:])
         print("Updated Packages: %d" % self.pkg_update)
         print("New Packages: %d" % self.pkg_new)
+        print("Dropped Packages: %d" % self.pkg_drop)
 
 
 class R(ExtsList):
@@ -230,7 +281,7 @@ class R(ExtsList):
     """
     def __init__(self, file_name, add_packages, package, verbose):
         ExtsList.__init__(self, file_name, add_packages, package, verbose)
-        self.bioc_data = {}
+        self.bioc_data = []
         self.depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats',
                                'stats4', 'graphics', 'grDevices', 'tools',
                                'tcltk', 'grid', 'splines']
@@ -248,26 +299,34 @@ class R(ExtsList):
                     if len(dep) > 2:
                         R_name += dep[2]
                     R_name += '.eb'
-                    print('Required R module: %s' % R_name)
-                    if os.path.dirname(file_name):
-                        R_name = os.path.dirname(file_name) + '/' + R_name
-                    eb = self.parse_eb(R_name, primary=False)
                     break
+            print('Required R module: %s' % R_name)
+            if os.path.dirname(file_name):
+                path = os.path.dirname(file_name)
+                if len(path) > 0: 
+                    R_name = path + '/' + R_name
+                eb = self.parse_eb(R_name, primary=False)
             for pkg in eb.exts_list:
                 if isinstance(pkg, tuple):
                     self.R_modules.append(pkg[0])
                 else:
                     self.R_modules.append(pkg)
-            self.read_bioconductor_pacakges()
+            if self.verbose > 1:
+                print('Read %d modules from R easyconfig: %s' % (
+                       len(self.R_modules), R_name))
         else:
             self.bioconductor = False
+        if self.biocver > 0:
+            self.read_bioconductor_pacakges(self.biocver)
 
-    def read_bioconductor_pacakges(self):
+    def read_bioconductor_pacakges(self, version):
             """ read the Bioconductor package list into bio_data dict
             """
-            bioc_urls = {'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
-                         'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
-                         'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json'}
+            base_url = 'https://bioconductor.org/packages/json/%s' % version
+            bioc_urls = ['%s/bioc/packages.json' % base_url,
+                         '%s/data/annotation/packages.json' % base_url,
+                         '%s/data/experiment/packages.json' % base_url
+                         ]
             self.bioc_data = {}
             for url in bioc_urls:
                 try:
@@ -336,12 +395,15 @@ class R(ExtsList):
         else:
             if self.debug:
                 print("get_package_info: %s" % pkg)
-            pkg_ver, depends = self.check_CRAN(pkg)
+            if self.biocver > 0:
+                pkg_ver, depends = self.check_BioC(pkg)
+            if pkg_ver == 'not found':
+                pkg_ver, depends = self.check_CRAN(pkg)
             if len(pkg) < 3:
                 pkg.append('ext_options')
             else:
                 pkg[2] = 'ext_options'
-        if self.verbose:
+        if self.verbose > 0:
             self.print_depends(pkg[0], depends)
         return pkg_ver, depends
 
@@ -375,27 +437,25 @@ class PythonExts(ExtsList):
         """
         sys_platform = 'Linux'
         python_version = self.python_version
+        platform_python_implementation = ''
         extra = ''
         require_re = '^([A-Za-z0-9_\-\.]+)(?:.*)$'
         extra_re = "and\sextra\s==\s'([A-Za-z0-9_\-\.]+)'"  # only if the
         targets = ['python_version', 'sys_platform', 'extra']
         ans = re.search(require_re, requires)
         name = ans.group(1)
-        test = False    # do we need to test extra requires field?
         state = True    # result of eval(requires)
 
         version = requires.split(';')
         if len(version) > 1:
             for target in targets:
                 if target in version[1]:
-                    test = True
+                    state = eval(version[1])
                     if target == 'extra':
                         extra = re.search(extra_re, version[1])
                         extra = extra.group(1) if extra else None
                         if extra not in [i[0] for i in self.exts_processed]:
                             extra = None
-            if test:
-                state = eval(version[1])
         if state:
             if self.debug:
                 if name not in [i[0] for i in self.exts_processed] and (
@@ -410,29 +470,45 @@ class PythonExts(ExtsList):
             return None
 
     def get_package_info(self, pkg):
-        """Python pypi API for package version and dependancy list
+        """Python pypi API for package version and dependency list
            pkg is a list; ['package name', 'version', 'other stuff']
-           return the version number for the package and a list of dependancie
+           return the version number for the package and a list of dependencies
         """
-        pkg_name = pkg[0]
-        pkg_version = pkg[1]
         depends = []
-        xml_vers = self.client.package_releases(pkg_name)
-        if xml_vers:
-            pkg_ver = xml_vers[0]
-            xml_info = self.client.release_data(pkg_name, pkg_ver)
-            if 'requires_dist' in xml_info.keys():
-                for requires in xml_info['requires_dist']:
+        (pkg_name, pkg_ver, pkg_info) = get_pypi_info(pkg[0])
+        if pkg_info:
+            if pkg[0] != pkg_info['name']:
+                pkg[0] = pkg_info['name']
+            if 'requires_dist' in pkg_info.keys():
+                for requires in pkg_info['requires_dist']:
                     pkg_requires = self.parse_pypi_requires(pkg_name, requires)
                     if pkg_requires:
                         depends.append(pkg_requires)
         else:
             self.depend_exclude.append(pkg[0])
-            sys.stderr.write("Warning: %s Not in PyPi. " % pkg[0])
-            sys.stderr.write("No depdancy checking performed\n")
+            print("Warning: %s Not in PyPi. " % pkg[0])
+            print("No dependency checking performed")
             pkg_ver = 'not found'
         return pkg_ver, depends
 
+def get_pypi_info(pkg_name):
+    """get version information from pypi.  If <pkg_name> is not found seach
+    pypi. if <pkg_name> matches search results case; use the new value of
+    pkg_name""" 
+    client = xmlrpclib.ServerProxy('https://pypi.python.org/pypi')
+    ver_list = client.package_releases(pkg_name)
+    if len(ver_list) == 0:
+        search_list = client.search({'name': pkg_name})
+        for info in search_list:
+            if pkg_name.lower() == info['name'].lower():
+                 pkg_name = info['name']
+                 break 
+        ver_list = client.package_releases(pkg_name)
+        if len(ver_list) == 0:
+            return pkg_name, 'not found', {} 
+    version = ver_list[0]
+    xml_info = client.release_data(pkg_name, version)
+    return pkg_name, version, xml_info
 
 def help():
     print("usage: easy_update  easyconfig.eb [flags]")
@@ -460,7 +536,7 @@ if __name__ == '__main__':
         help()
         sys.exit(0)
 
-    vflag = False
+    vflag = 0 
     add_packages = []
     package = None
     file_name = os.path.basename(sys.argv[1])
@@ -472,7 +548,7 @@ if __name__ == '__main__':
         if opt == "--add":
             get_package_list(arg, add_packages)
         elif opt == "--verbose":
-            vflag = True
+            vflag += 1 
         elif opt == "--check":
             package = arg
     if file_name[:2] == 'R-':

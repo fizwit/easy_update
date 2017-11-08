@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-
 import re
-import urllib2 
-from HTMLParser import HTMLParser
+import urllib.request
+from html.parser import HTMLParser
 
 
 class RParser(HTMLParser):
@@ -79,18 +78,16 @@ class PythonParser(HTMLParser):
             self.latest = False
 
 p = PythonParser()
-f = urllib2.urlopen("https://python.org")
-html = f.read()
+f = urllib.request.urlopen("https://python.org")
+html = str(f.read())
 p.feed(html)
-print "Latest: ", p.Python2version
-print "Latest: ", p.Python3version
+print("Latest: %s" % p.Python2version)
+print("Latest: %s"  %p.Python3version)
 p.close()
 
 r = RParser()
-urldata = urllib2.urlopen('https://www.r-project.org/')
-html = urldata.read()
-r = RParser()
+f = urllib.request.urlopen('https://www.r-project.org/')
+html = str(f.read())
 r.feed(html)
-print "Latest: ", r.RversionSting
+print("Latest: %s" % r.RversionSting)
 r.close
-

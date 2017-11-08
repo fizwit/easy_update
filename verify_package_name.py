@@ -5,7 +5,7 @@ import imp
 import json
 import os
 import requests
-import urllib2
+import urllib
 import xmlrpclib
 
 def verifyName(file_name ):
@@ -29,8 +29,8 @@ def verifyName(file_name ):
 
         try:
             exec (code, eb.__dict__)
-        except Exception, e:
-            print "interperting easyconfig error: %s" % e
+        except Exception as e:
+            print("interperting easyconfig error: %s" % e)
 
         pkg_name = eb.name + '-' + eb.version
         if eb.toolchain['name'] != 'dummy':
@@ -43,14 +43,14 @@ def verifyName(file_name ):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "usage: %s [easybuild easyconfig]" % sys.argv[0]
+        print("usage: %s [easybuild easyconfig]" % sys.argv[0])
         sys.exit(0)
 
     file_name = os.path.basename(sys.argv[1])[:-3]
     module_name = verifyName(sys.argv[1])
     if module_name != file_name: 
-        print "Module names do not match"
+        print("Module names do not match")
     else:
-        print "match!"
-    print "Module name: ", module_name
-    print "File name:   ", file_name
+        print("match!")
+    print("Module name: %s" % module_name)
+    print("File name:   %s" % file_name)
