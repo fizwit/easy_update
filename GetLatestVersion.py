@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import re
-import urllib.request
+import urllib2.request
 from html.parser import HTMLParser
 
 
