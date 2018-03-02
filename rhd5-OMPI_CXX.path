@@ -1,0 +1,46 @@
+diff -ruN rhdf5.orig/BinaryFiles rhdf5/BinaryFiles
+--- rhdf5.orig/BinaryFiles	1969-12-31 16:00:00.000000000 -0800
++++ rhdf5/BinaryFiles	2017-04-24 13:44:08.000000000 -0700
+@@ -0,0 +1,5 @@
++src/libwin/i386/libsz-2.dll
++src/libwin/i386/libhdf5ForBioC-7.dll
++src/libwin/x64/libsz-2.dll
++src/libwin/x64/libhdf5ForBioC-7.dll
++src/hdf5source/hdf5small.tgz
+diff -ruN rhdf5.orig/configure.ac rhdf5/configure.ac
+--- rhdf5.orig/configure.ac	2017-10-30 14:23:39.000000000 -0700
++++ rhdf5/configure.ac	2017-12-14 16:54:23.339510000 -0800
+@@ -13,7 +13,7 @@
+   exit 1
+ fi
+ 
+-
++OMPI_CXX=`${EBROOTOPENMPI}/bin/mpicxx`
+ CC=`"${R_HOME}/bin/R" CMD config CC`
+ CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
+ MAKE=`${R_HOME}/bin/R CMD config MAKE`
+Binary files rhdf5.orig/inst/downloadHDF5/.downloadHDF5.sh.swp and rhdf5/inst/downloadHDF5/.downloadHDF5.sh.swp differ
+diff -ruN rhdf5.orig/src/Makevars rhdf5/src/Makevars
+--- rhdf5.orig/src/Makevars	1969-12-31 16:00:00.000000000 -0800
++++ rhdf5/src/Makevars	2017-04-24 16:13:48.000000000 -0700
+@@ -0,0 +1,20 @@
++PKG_CFLAGS = -Ihdf5/src
++PKG_CXXFLAGS = -Ihdf5/src
++PKG_LIBS = libhdf5ForBioC.a -lz -lm -L.
++
++objects := $(patsubst %.c%,%.o,$(wildcard *.c*)) 
++
++all: $(SHLIB)
++$(SHLIB): libhdf5ForBioC.a
++$(objects): libhdf5ForBioC.a
++
++libhdf5ForBioC.a: 
++	cd hdf5source && \
++	   gunzip -dc hdf5small.tgz | tar xf -;
++	rm -rf hdf5
++	mv hdf5source/hdf5 .
++	cd hdf5 && \
++	   ./configure CC="${CC}" CPP="${CPP}" CXX="${CXX}" CXXCPP="${CXXCPP}" F77="${F77}" --build="${R_ARCH#*/}" --with-pic 
++	cd hdf5/src && \
++	   $(MAKE)
++	cp hdf5/src/.libs/libhdf5ForBioC.a .

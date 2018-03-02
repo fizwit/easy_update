@@ -1,0 +1,23 @@
+diff -ruN rhdf5.orig/configure.ac rhdf5/configure.ac
+--- rhdf5.orig/configure.ac	2017-10-30 14:23:39.000000000 -0700
++++ rhdf5/configure.ac	2017-11-08 15:38:44.715138000 -0800
+@@ -19,6 +19,7 @@
+ MAKE=`${R_HOME}/bin/R CMD config MAKE`
+ CXX="${CXX}"
+ CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
++CXXFLAGS+=' -DOMPI_IGNORE_CXX_SEEK'
+ F77=`"${R_HOME}/bin/R" CMD config F77`
+ AC_LANG(C++)
+ 
+diff -ruN rhdf5.orig/src/Makevars.in rhdf5/src/Makevars.in
+--- rhdf5.orig/src/Makevars.in	2017-10-30 16:24:05.000000000 -0700
++++ rhdf5/src/Makevars.in	2017-11-08 14:16:18.191998000 -0800
+@@ -2,7 +2,7 @@
+ HDF5_LIB=@HDF5_LIB@
+ 
+ PKG_CFLAGS = -I${HDF5_INCLUDE}
+-PKG_CXXFLAGS = -I${HDF5_INCLUDE}
++PKG_CXXFLAGS = -I${HDF5_INCLUDE} -DOMPI_IGNORE_CXX_SEEK
+ PKG_LIBS = ${HDF5_LIB} -lz -lm -L.
+ 
+ #expose headers in installed package include folder

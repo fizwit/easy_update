@@ -1,0 +1,52 @@
+diff -ruN rhdf5.orig/configure.ac rhdf5/configure.ac
+--- rhdf5.orig/configure.ac	2017-10-30 14:23:39.000000000 -0700
++++ rhdf5/configure.ac	2017-12-15 15:19:33.809036000 -0800
+@@ -13,12 +13,13 @@
+   exit 1
+ fi
+ 
+-
++OMPI_CXX=`${EBROOTOPENMPI}/bin/mpicxx`
++MPI_FLAGS='-DOMPI_IGNORE_CXX_SEEK'
+ CC=`"${R_HOME}/bin/R" CMD config CC`
+ CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
+ MAKE=`${R_HOME}/bin/R CMD config MAKE`
+ CXX="${CXX}"
+-CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
++CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS ${MPI_FLAGS}`
+ F77=`"${R_HOME}/bin/R" CMD config F77`
+ AC_LANG(C++)
+ 
+@@ -39,7 +40,7 @@
+ 
+ echo "building the bundled hdf5 library...";
+ cd ${BASEPBNAME};
+-./configure  --with-pic --enable-shared=no CXX="${CXX}" CXXFLAGS="${CXXFLAGS}" CC="${CC}" CFLAGS="${CFLAGS}" F77="${F77}"
++./configure  --with-pic --enable-cxx --enable-shared=no CXX="${CXX}" CXXFLAGS="${CXXFLAGS}" CC="${CC}" CFLAGS="${CFLAGS}" F77="${F77}"
+ $MAKE lib
+ cd ../../
+ 
+diff -ruN rhdf5.orig/inst/downloadHDF5/downloadHDF5.sh rhdf5/inst/downloadHDF5/downloadHDF5.sh
+--- rhdf5.orig/inst/downloadHDF5/downloadHDF5.sh	2017-10-30 14:23:39.000000000 -0700
++++ rhdf5/inst/downloadHDF5/downloadHDF5.sh	2017-12-15 15:55:49.208545000 -0800
+@@ -25,7 +25,7 @@
+ SCRIPT="source(\"../../inst/downloadHDF5/replacestr.R\")"
+ echo ${SCRIPT}
+ echo ${SCRIPT} | R --arch=x86_64 --slave --vanilla
+-rm -rf c++
++#rm -rf c++
+ rm -rf examples
+ rm -rf fortran
+ rm -rf hl
+diff -ruN rhdf5.orig/src/Makevars.in rhdf5/src/Makevars.in
+--- rhdf5.orig/src/Makevars.in	2017-10-30 16:24:05.000000000 -0700
++++ rhdf5/src/Makevars.in	2017-12-15 12:32:30.708430000 -0800
+@@ -2,7 +2,7 @@
+ HDF5_LIB=@HDF5_LIB@
+ 
+ PKG_CFLAGS = -I${HDF5_INCLUDE}
+-PKG_CXXFLAGS = -I${HDF5_INCLUDE}
++PKG_CXXFLAGS = -I${HDF5_INCLUDE} -DOMPI_IGNORE_CXX_SEEK
+ PKG_LIBS = ${HDF5_LIB} -lz -lm -L.
+ 
+ #expose headers in installed package include folder
