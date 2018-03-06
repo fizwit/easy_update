@@ -84,7 +84,7 @@ class ExtsList(object):
             self.check_package_name(args.easyconfig)
             try: 
                 self.biocver = eb.biocver
-                print('biocver: %s' % self.biocver)
+                if self.debug: print('biocver: %s' % self.biocver)
             except:
                 pass
             if args.add_pkg:
@@ -517,7 +517,6 @@ class PythonExts(ExtsList):
            return the version number for the package and a list of dependencies
 
            TODO; whl file should check versions. Output for whl should also
-           set 'usepip: True' 
            if version == '3.6':
                pyver = 'cp36'
                arch = 'linux' ['manylinux', 'anylinux', 'linux']
@@ -551,6 +550,8 @@ class PythonExts(ExtsList):
                 if url['url'].endswith('whl'):
                     URL = url['url']
                     file_name = url['filename']
+                    pkg[2]['use_pip'] = True
+                    pkg[2]['unpack_sources'] = False
             else:
                 source_tmpl = None
         if 'requires_dist' in xml_info.keys():
@@ -584,10 +585,6 @@ class PythonExts(ExtsList):
         if source_tmpl:
             print("%s%s'source_tmpl': '%s'," % (indent, indent, source_tmpl))
         print("%s})," % indent )
-        if self.meta:
-            print('# Package Meta Data')
-            for item in url_info.keys():
-                print('# %-35s: %s' % (item, url_info[item]))
 
     def get_pypi_info(self, pkg_name):
         """get version information from pypi.  If <pkg_name> is not found seach
@@ -611,15 +608,24 @@ class PythonExts(ExtsList):
         version = ver_list[0]
         xml_info = client.release_data(pkg_name, version)
         url_info = client.release_urls(pkg_name, version)
+        if self.meta:
+            for k,v in url_info[0].iteritems():
+                print('%35s: %s' % (k, v))
+            for k,v in xml_info.iteritems():
+                print('%35s: %s' % (k, v))
         return pkg_name, version, xml_info, url_info
 
 
     def output_module(self, pkg):
-        """Python version: format a pkg for output"""
+        """Python version: format single pkg for output. 
+        Used if --search argument is used.
+        if checkpackage == True
+        """
         output = "%s('%s', '%s', {\n" % (self.indent, pkg[0], pkg[1])
         for item in pkg[2].keys():
            if item == 'action' or item == 'state':
-               print('%s: %s' % (item, pkg[2][item]))
+               if not self.debug: 
+                   continue 
            output += "%s%s'%s': %s,\n" % (self.indent, self.indent, item, pkg[2][item])
         output += "%s})," % self.indent
         return output

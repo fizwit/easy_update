@@ -63,7 +63,7 @@ class ExtsList(object):
             code += f.read()
         try:
             exec (code, eb.__dict__)
-        except Exception, e:
+        except Exception as e:
             print("interperting easyconfig error: %s" % e)
             eb = {}
         return eb
