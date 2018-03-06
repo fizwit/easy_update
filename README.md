@@ -18,8 +18,8 @@ easy_update takes a single argument which is the path to an easyconfig file. The
 with the extension ".update".
 
 <dl>
-  <dd>**Usage:** ``./easy_update.py Python-2.7.12-foss-2016b.eb``</dd>
-  <dd>**Output:** ``Python-2.7.12-foss-2016b.update``</dd>
+  <dd><b>Usage:</b> ./easy_update.py Python-2.7.12-foss-2016b.eb</dd>
+  <dd><b>Output:</b> Python-2.7.12-foss-2016b.update</dd>
 </dl>
 
 **Note:** When using BioConductor modules in easyconfig files the variable ``biocver`` must be set, otherwise
