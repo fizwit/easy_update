@@ -1,8 +1,5 @@
-output
-.idea/*
-*.pyc
-*.eb
-*.update
-*.txt
-*.html
-*.json
+*
+!README.md
+!easy_update.py
+!easy_annotate.py
+!GetLatestVersion.py
