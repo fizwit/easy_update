@@ -48,13 +48,11 @@ class ExtsList(object):
         self.verbose = args.verbose
         self.debug = False 
         self.meta = args.meta
-        self.pkg_top = None 
         self.code = None
-        self.ext_list_len = 0
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
-        self.pkg_drop = 0
+        self.pkg_duplicate = 0
 
         self.exts_processed = []  # single list of package names
         self.depend_exclude = []  # built in packages not be added to exts_list
@@ -81,7 +79,7 @@ class ExtsList(object):
             except NameError:
                 print('versionsuffix not defined')
             self.pkg_version = eb.version
-            self.check_package_name(args.easyconfig)
+            self.check_eb_package_name(args.easyconfig)
             try: 
                 self.biocver = eb.biocver
                 if self.debug: print('biocver: %s' % self.biocver)
@@ -103,7 +101,8 @@ class ExtsList(object):
             if args.biocver:
                 self.biocver = args.biocver
             self.checkpackage = True
-            d = {'state': 'top', 'action': 'add'}
+            d = dict() 
+            d = {'type': 'orig'}
             self.exts_orig = [(args.pkg_name, 'x', d)]
 
 
@@ -136,11 +135,12 @@ class ExtsList(object):
         """
         with open(fname, "r") as pkg_file:
             for pkg in pkg_file:
-                d = {'state': 'top', 'action': 'add'}
+                d = dict()
+                d = {'type': 'add'}
                 self.exts_orig.append((pkg, 'x', d))
 
 
-    def check_package_name(self, easyconfig):
+    def check_eb_package_name(self, easyconfig):
         """" check that easybuild filename matches package name
         easyconfig is filename of easyconfig file
         """
@@ -152,6 +152,27 @@ class ExtsList(object):
                              f_name, self.eb_filename))
             sys.stderr.write('Writing output to: %s' % self.eb_filename +
                              '.update\n')
+
+
+    def is_processed(self, pkg):
+        """ check if package has been previously processed 
+            if package exists AND is in the original exts_lists
+                Mark as 'duplicate' 
+        """
+        if pkg[0] in [i[0] for i in self.exts_processed] or (
+           pkg[0] in self.depend_exclude):
+            if pkg[2]['type'] == 'orig':
+                dupPkg = list()
+                dupPkg.append(pkg[0])
+                dupPkg.append(pkg[1])
+                d = {'action': 'duplicate'}
+                dupPkg.append(d)
+                self.pkg_duplicate += 1
+                self.exts_processed.append(dupPkg)
+                if self.verbose: self.print_status(dupPkg, dupPkg[1])
+            return True
+        else:
+            return False
 
 
     def get_package_info(self, pkg):
@@ -167,12 +188,17 @@ class ExtsList(object):
         """
         pass
 
-    def is_processed(self, pkg_name):
-        if pkg_name in [i[0] for i in self.exts_processed] or (
-           pkg_name in self.depend_exclude):
-            return True
+
+    def print_status(self, pkg, orig_ver):
+        """ print one line status for each package if --verbose """
+        if pkg[2]['action'] == 'update':
+            version = '%s -> %s' % (orig_ver, pkg[1])
         else:
-            return False
+            version = pkg[1]
+        action = '(%s)' % pkg[2]['action']
+        tmpl = "%20s : %-20s %12s [%2d, %d]"
+        print(tmpl % (pkg[0], version, action,
+                      self.ext_list_len, self.ext_counter))
 
     def check_package(self, pkg):
         """query package authority [Pypi, CRAN, Bio] to get the latest version
@@ -181,51 +207,47 @@ class ExtsList(object):
         input: pkg - list [pkg_name, pkg_version, dict]
         check that all dependancies are meet for each package.
         check_package can be called recursivly.
-        dict['state'] is used to track status.
-          - 'top' is also used to track recursion
+        dict['type'] is used to track status.
+          - 'orig' is also used to track recursion
           - 'dep' package that is added as result of dependancy
+          - 'add' packages read from file
         dict['action'] What action will be take to exts_list.
           - 'add'; new package
           - 'keep'; no update required
           - 'update'; version change
           - 'duplicate' package appears twice
-          - 'dep' or 'add' write new record to exts_list
         """
-        if self.debug: print('check_package: %s: %s' % (pkg[0], json.dumps(pkg[2])))
-        if self.is_processed(pkg[0]):
-            if pkg[2]['state'] == 'top':
-                pkg[2]['action'] = 'duplicate'
-                self.exts_processed.append(pkg)
+        if self.debug: print('check_package: %s-%s: %s ' % (pkg[0], pkg[1], json.dumps(pkg[2])))
+        if self.is_processed(pkg):
             return
         msg, result, depends = self.get_package_info(pkg)
-        if self.debug: print('check_package; msg: %s result: %s' % (msg, result))
-        if msg == "error" or msg == 'not found':
-            if pkg[2]['state'] == 'top':
+        if msg in ["error", 'not found']:
+            if pkg[2]['type'] == 'orig':
                 pkg[2]['action'] = 'keep'
                 self.exts_processed.append(pkg)
                 return
             else:
-                #self.pkg_drop += 1
-                msg = "Warning: package %s is a dependency of %s, but "
-                msg += "can't be found!"
-                print(msg % (pkg[0], self.pkg_top))
+                msg = "Warning: %s is dependency, but can't be found!"
+                print(msg % pkg[0])
                 return
 
         if pkg[0] != result[0]:  # name mismatch, this is a Python issue
             print("Warning: name mismatch %s -> %s" % (pkg[0], result[0]))
-            if self.is_processed(result[0]):
+            if self.is_processed(result):
                  return
 
-        if pkg[1] == result[1]:
+        orig_ver = pkg[1]
+        if pkg[1] == result[1]: # compare versions
             pkg[2]['action'] = 'keep'
         else:
             orig_ver = pkg[1]
             pkg[1] = result[1] 
             self.pkg_update += 1
-            if pkg[2]['action'] == 'orig': 
+            if pkg[2]['type'] == 'orig': 
                 pkg[2]['action'] = 'update'
-            elif pkg[2]['action'] == 'dep' or pkg[2]['action'] == 'add':
+            elif pkg[2]['type'] in ['dep', 'add']:
                 if self.debug: print('check_package; dep or add')
+                pkg[2]['action'] = 'add'
                 if self.name == "Python":
                     templ = "['https://pypi.python.org/packages/source/%s/%s']"
                     url = templ % (result[0][0], result[0])
@@ -234,23 +256,16 @@ class ExtsList(object):
 
         for depend in depends:
             if depend not in self.depend_exclude:
-                d = {'state': 'dep', 'action': 'dep'}
+                d = dict()
+                d = {'type': 'dep'}
                 self.check_package([depend, 'x', d])
         self.exts_processed.append(pkg)
         self.ext_counter += 1
-        if self.debug: print('check_package; checkpackage:', self.checkpackage)
         if self.checkpackage:
             output = self.output_module(pkg)
             print(output)
         if self.verbose:
-            if pkg[2]['action'] == 'update':
-                version = '%s -> %s' % (orig_ver, pkg[1])
-            else:
-                version = pkg[1]
-            action = '(%s)' % pkg[2]['action']
-            tmpl = "%20s : %-20s %12s [%2d, %d]"
-            print(tmpl % (pkg[0], version, action,
-                          self.ext_list_len, self.ext_counter))
+            self.print_status(pkg, orig_ver)
 
     def update_exts(self):
         """Loop through exts_list and check which packages need to be updated.
@@ -259,10 +274,9 @@ class ExtsList(object):
         self.ext_list_len = len(self.exts_orig)
         for pkg in self.exts_orig:
             if isinstance(pkg, tuple):
-                pkg[2]['state'] = 'top'
-                if 'action' not in pkg[2]:
-                    pkg[2]['action'] = 'orig'
-                self.check_package(list(pkg))
+                lpkg = list(pkg)
+                lpkg[2]['type'] = 'orig'
+                self.check_package(lpkg)
             else:
                 self.exts_processed.append(pkg)
 
@@ -303,11 +317,10 @@ class ExtsList(object):
             action = extension[2]['action'] 
             # del extension[2]['action']
             # del extension[2]['state'] 
-            if action == 'keep' or action == 'update':
+            if action in ['keep', 'update']:
                 self.rewrite_extension(extension)
                 # sys.exit(0)
             elif action == 'duplicate':
-                print("duplicate: %s" % extension[0])
                 name_indx = self.code[self.ptr_head:].find(extension[0])
                 name_indx += self.ptr_head + len(extension[0])
                 indx = self.code[name_indx:].find('),') + name_indx + 3
@@ -319,18 +332,19 @@ class ExtsList(object):
         self.out.write(self.code[self.ptr_head:])
         print("Updated Packages: %d" % self.pkg_update)
         print("New Packages: %d" % self.pkg_new)
-        print("Dropped Packages: %d" % self.pkg_drop)
+        print("Dropped Packages: %d" % self.pkg_duplicate)
 
 
 class R(ExtsList):
-    """extend ExtsList class to update package names from CRAN
+    """extend ExtsList class to update package names from CRAN and BioCondutor
     """
     def __init__(self, args):
         ExtsList.__init__(self, args)
+        self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
+                               'grDevices', 'grid', 'methods', 'parallel', 
+                               'splines', 'stats', 'stats4', 'tcltk', 'tools',
+                               'utils',] 
         self.bioc_data = {}
-        self.depend_exclude = ['R', 'parallel', 'methods', 'utils', 'stats',
-                               'stats4', 'graphics', 'grDevices', 'tools',
-                               'tcltk', 'grid', 'splines', 'compiler' ]
         if self.biocver:
             self.read_bioconductor_pacakges()
         else:
@@ -372,10 +386,9 @@ class R(ExtsList):
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
             return 'base package', []
         if u"Depends" in cran_info:
-            depends = cran_info[u"Depends"].keys()
+            depends.extend(cran_info[u"Depends"].keys())
         if u"Imports" in cran_info:
-            depends += cran_info[u"Imports"].keys()
-        if self.meta: print('%s: %s' % (pkg[0], json.dumps(cran_info,indent=4)))
+            depends.extend(cran_info[u"Imports"].keys())
         return pkg_ver, depends
 
 
@@ -392,14 +405,14 @@ class R(ExtsList):
             pkg_ver = self.bioc_data[pkg[0]]['Version']
             source_file = self.bioc_data[pkg[0]]['source.ver']
             if 'Depends' in self.bioc_data[pkg[0]]:
-                depends = [re.split('[ (><=,]', s)[0]
-                           for s in self.bioc_data[pkg[0]]['Depends']]
+                depends.extend([re.split('[ (><=,]', s)[0]
+                           for s in self.bioc_data[pkg[0]]['Depends']])
             if 'Imports' in self.bioc_data[pkg[0]]:
-                depends = [re.split('[ (><=,]', s)[0]
-                           for s in self.bioc_data[pkg[0]]['Imports']]
-            if self.meta: print('%s: %s' % (pkg[0], json.dumps(self.bioc_data[pkg[0]],indent=4)))
+                depends.extend([re.split('[ (><=,]', s)[0]
+                           for s in self.bioc_data[pkg[0]]['Imports']])
         else:
             pkg_ver = "not found"
+        if self.debug: print('%s: Depends on: %s' % (pkg[0], depends))
         return pkg_ver, depends
 
     def print_depends(self, pkg, depends):
@@ -412,6 +425,7 @@ class R(ExtsList):
         """R version, check CRAN and BioConductor for version information
         """
         depends = []
+        pkg_name = pkg[0]
         pkg_ver, depends = self.get_BioC_info(pkg)
         if pkg_ver == 'not found':
             pkg_ver, depends = self.get_CRAN_info(pkg)
@@ -421,10 +435,7 @@ class R(ExtsList):
                 pkg[2]['R_source'] = 'ext_options'
         else:
             pkg[2]['R_source'] = 'bioconductor_options'
-        if self.debug:
-            for p in depends:
-                print("    %s requires: %s" % (pkg[0], p))
-        return 'ok', [pkg[0], pkg_ver], depends
+        return 'ok', (pkg_name, pkg_ver), depends
 
 
     def output_module(self, pkg):
@@ -623,9 +634,8 @@ class PythonExts(ExtsList):
         """
         output = "%s('%s', '%s', {\n" % (self.indent, pkg[0], pkg[1])
         for item in pkg[2].keys():
-           if item == 'action' or item == 'state':
-               if not self.debug: 
-                   continue 
+           if item == 'action' or item == 'type':
+               continue 
            output += "%s%s'%s': %s,\n" % (self.indent, self.indent, item, pkg[2][item])
         output += "%s})," % self.indent
         return output
