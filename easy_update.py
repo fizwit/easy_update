@@ -46,9 +46,11 @@ class ExtsList(object):
     """
     def __init__(self, args):  # Old:  file_name, add_packages, package, verbose
         self.verbose = args.verbose
-        self.debug = False 
+        self.debug = False
         self.meta = args.meta
+        self.search_pkg = None 
         self.code = None
+        self.biocver = None 
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
@@ -60,8 +62,6 @@ class ExtsList(object):
         self.ptr_head = 0
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
-        self.biocver = None 
-        self.checkpackage = False 
 
         # update easyconfig exts_list or check single package
         if args.easyconfig:
@@ -78,17 +78,19 @@ class ExtsList(object):
                 self.eb_filename += eb.versionsuffix
             except NameError:
                 print('versionsuffix not defined')
-            self.pkg_version = eb.version
-            self.check_eb_package_name(args.easyconfig)
             try: 
                 self.biocver = eb.biocver
                 if self.debug: print('biocver: %s' % self.biocver)
             except:
                 pass
+            self.pkg_version = eb.version
+            self.check_eb_package_name(args.easyconfig)
             if args.add_pkg:
                 self.get_package_list(args.add_pkg) 
             self.out = open(self.eb_filename + ".update", 'w')
-        elif args.pkg_name:
+        elif args.search_pkg:
+            self.search_pkg = args.search_pkg
+            if args.biocver: self.biocver = args.biocver
             if args.pyver:
                 self.name = "Python"
                 self.version = args.pyver
@@ -98,12 +100,9 @@ class ExtsList(object):
             else:
                 print('Languange and version must be specified with ' +
                       '[--pyver x.x | --rver x.x | --biocver x.x]')
-            if args.biocver:
-                self.biocver = args.biocver
-            self.checkpackage = True
             d = dict() 
-            d = {'type': 'orig'}
-            self.exts_orig = [(args.pkg_name, 'x', d)]
+            d = {'type': 'add'}
+            self.search_ext = [args.search_pkg, 'x', d]
 
 
     def parse_eb(self, file_name, primary):
@@ -161,7 +160,7 @@ class ExtsList(object):
         """
         if pkg[0] in [i[0] for i in self.exts_processed] or (
            pkg[0] in self.depend_exclude):
-            if pkg[2]['type'] == 'orig':
+            if len(pkg) > 2 and pkg[2]['type'] == 'orig':
                 dupPkg = list()
                 dupPkg.append(pkg[0])
                 dupPkg.append(pkg[1])
@@ -261,7 +260,7 @@ class ExtsList(object):
                 self.check_package([depend, 'x', d])
         self.exts_processed.append(pkg)
         self.ext_counter += 1
-        if self.checkpackage:
+        if self.search_pkg:
             output = self.output_module(pkg)
             print(output)
         if self.verbose:
@@ -271,14 +270,17 @@ class ExtsList(object):
         """Loop through exts_list and check which packages need to be updated.
         this is an external method for the class
         """
-        self.ext_list_len = len(self.exts_orig)
-        for pkg in self.exts_orig:
-            if isinstance(pkg, tuple):
-                lpkg = list(pkg)
-                lpkg[2]['type'] = 'orig'
-                self.check_package(lpkg)
-            else:
-                self.exts_processed.append(pkg)
+        if self.search_pkg:
+            self.check_package(self.search_ext)
+        else:
+            self.ext_list_len = len(self.exts_orig)
+            for pkg in self.exts_orig:
+                if isinstance(pkg, tuple):
+                    lpkg = list(pkg)
+                    lpkg[2]['type'] = 'orig'
+                    self.check_package(lpkg)
+                else:
+                    self.exts_processed.append(pkg)
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -464,6 +466,8 @@ class PythonExts(ExtsList):
         # Python >3.3 has additional built in modules
         if nums[0] == 3 and nums[1] > 3:
             self.depend_exclude = ['argparse', 'asyncio', ]
+        if self.debug and self.search_pkg:
+            print('Python Search PyPi: %s' % self.search_pkg)
 
     def parse_pypi_requires(self, eb_filename, requires):
         """pip requirement specifier is defined in full in PEP 508
@@ -574,13 +578,7 @@ class PythonExts(ExtsList):
             self.depend_exclude.append(pkg[0])
 
         # checkpage should print from print_update()
-        #if self.checkpackage:
-        #    for dep_pkg in depends:
-        #        d = {'state': 'dep'}
-        #        self.get_package_info((dep_pkg, '', d))
-        #    self.print_python_exts_list(pkg[0], pkg_ver, source_tmpl,
-        #                                url_info[idx])
-        return 'ok', (pkg_name, pkg_ver), depends
+        return 'ok', [pkg_name, pkg_ver], depends
 
 
     def print_python_exts_list(self, pkg, ver, source_tmpl, url_info):
@@ -630,7 +628,7 @@ class PythonExts(ExtsList):
     def output_module(self, pkg):
         """Python version: format single pkg for output. 
         Used if --search argument is used.
-        if checkpackage == True
+        if self.search_pkg:
         """
         output = "%s('%s', '%s', {\n" % (self.indent, pkg[0], pkg[1])
         for item in pkg[2].keys():
@@ -672,17 +670,17 @@ def main():
     parser.add_argument('--add', dest='add_pkg', required=False, action='store',
                         help='File that contains additional packages to be added')
     sea_help = 'Search for single package. requires --rver or --pyber' 
-    parser.add_argument('--search', dest='pkg_name', required=False, action='store',
+    parser.add_argument('--search', dest='search_pkg', required=False, action='store',
                         help=sea_help)
     parser.add_argument('--meta', dest='meta', required=False, action='store_true',
                         help='output all meta data keys from Pypi, (default: false)')
     parser.add_argument('easyconfig', nargs='?') 
     args = parser.parse_args()
-   
+  
     eb_name = '' 
     if args.easyconfig:
         eb_name = os.path.basename(args.easyconfig)
-    elif args.pkg_name:
+    elif args.search_pkg:
         pass
     else:
         print('If no easyconfig is given, a module name must be ' +
@@ -695,7 +693,7 @@ def main():
     elif args.pyver or eb_name[:7] == 'Python-':
         module = PythonExts(args)
     else:
-        msg = "Module name must begin with R- or Python- OR"
+        msg = "EasyConfig file name must begin with R- or Python- OR"
         msg += "  --search argument must be used"
         print(msg)
         sys.exit(1)

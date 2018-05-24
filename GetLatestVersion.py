@@ -2,6 +2,7 @@
 import re
 import urllib2.request
 from html.parser import HTMLParser
+# sys.version_info >= (2, 6)
 
 
 class RParser(HTMLParser):
