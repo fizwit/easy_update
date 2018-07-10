@@ -76,7 +76,7 @@ class ExtsList(object):
             self.eb_filename += '-' + eb.toolchain['version']
             try:
                 self.eb_filename += eb.versionsuffix
-            except NameError:
+            except AttributeError, NameError:
                 print('versionsuffix not defined')
             try: 
                 self.biocver = eb.biocver
