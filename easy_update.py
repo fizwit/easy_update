@@ -446,7 +446,8 @@ class R(ExtsList):
             pkg['meta']['requires'].extend(cran_info[u"Depends"].keys())
         if u"Imports" in cran_info:
             pkg['meta']['requires'].extend(cran_info[u"Imports"].keys())
-            pprint(cran_info['Imports'])
+        print('R depends:')
+        pprint(pkg['meta']['requires'])
         return 'ok'
 
 
