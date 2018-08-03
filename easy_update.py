@@ -46,7 +46,7 @@ class ExtsList(object):
     """
     def __init__(self, args):  # Old:  file_name, add_packages, package, verbose
         self.verbose = args.verbose
-        self.debug = True
+        self.debug = False 
         self.meta = args.meta
         self.code = None
         self.biocver = None 
@@ -103,7 +103,7 @@ class ExtsList(object):
                 print('Languange and version must be specified with ' +
                       '[--pyver x.x | --rver x.x | --biocver x.x]')
             sea_pkg = {'name': args.search_pkg, 'version': 'x', 'type': 'add',
-                       'spec': {}
+                       'spec': {}, 'meta': {}
                        }
             self.search_ext = sea_pkg
 
@@ -161,7 +161,8 @@ class ExtsList(object):
         updated July 2018
         """
         pkg['processed'] = True 
-        self.exts_processed.append(pkg)
+        pkg2 = dict(pkg)
+        self.exts_processed.append(pkg2)
 
 
     def is_processed(self, pkg):
@@ -172,19 +173,19 @@ class ExtsList(object):
         """
         name = pkg['name']
         for p_pkg in self.exts_processed:
-            if 'modulename' in p_pkg['spec']:
+            if 'spec' in p_pkg and 'modulename' in p_pkg['spec']:
                 modulename = p_pkg['spec']['modulename']
             else:
                 modulename = ''
-            if name == p_pkg['name'] or name == modulename: 
+            if (str(name) == str(p_pkg['name'])) or (name == modulename): 
                 if pkg['type'] == 'orig':
                     pkg['action'] = 'duplicate'
                     self.pkg_duplicate += 1
                     self.processed(pkg)
-                    if self.verbose: self.print_status(pkg)
+                    if self.verbose:
+                        self.print_status(pkg)
                 return True
-            else:
-                return False
+        return False
 
 
     def get_package_info(self, pkg):
@@ -269,12 +270,14 @@ class ExtsList(object):
                 pkg['action'] = 'add'
                 self.pkg_new += 1
 
-        if 'requests_dist' in pkg['meta']:
-            for depend in pkg['meta']['requests_dist']:
+        if 'requires' in pkg['meta']:
+            for depend in pkg['meta']['requires']:
                 if depend not in self.depend_exclude:
-                    depPkg = dict()
-                    depPkg = {'name': depnd, 'type': 'dep'}
+                    depPkg = {'name': depend, 'version': 'x', 'type': 'dep',
+                              'spec': {}, 'meta': {}}
                     self.check_package(depPkg)
+        else:
+            print('No requires!: %s' % pkg['name'])
         self.processed(pkg)
         self.ext_counter += 1
         if self.search_pkg:
@@ -298,9 +301,10 @@ class ExtsList(object):
                 if isinstance(ext, tuple):
                     pkg = {'name': ext[0], 'version': ext[1], 'spec': ext[2],
                            'type': 'orig'}
+                    pkg['meta'] = {}
                     self.check_package(pkg)
                 else:
-                    self.processed({'name': ext, 'spec': {}})
+                    self.processed({'name': ext, 'type': 'base'})
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -312,17 +316,8 @@ class ExtsList(object):
         name_indx += self.ptr_head + len(name) + 1
         indx = self.code[name_indx:].find("'") + name_indx + 1
         self.write_chunk(indx)
-        self.out.write("%s'," % pkg['version'])  # write version Number
-        self.ptr_head = self.code[self.ptr_head:].find(',') + (
-                        self.ptr_head + 1)
-        if 'checksums' in pkg['spec']:
-            indx = self.code[self.ptr_head:].find('checksums') + self.ptr_head + 10 
-            self.write_chunk(indx)
-            indx = self.code[self.ptr_head:].find("'") + self.ptr_head + 1 
-            self.write_chunk(indx)
-            self.out.write(pkg['checksums'])
-            self.ptr_head = self.code[self.ptr_head:].find("'") + (
-                        self.ptr_head)
+        self.out.write("%s'," % pkg['version'])
+        self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
         indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
         self.write_chunk(indx)
 
@@ -341,21 +336,25 @@ class ExtsList(object):
 
         for extension in self.exts_processed:
             name = extension['name']
-            if 'orig_ver' not in extension:  # no change skip
+            if 'action' not in extension:
+                print('No action: %s' % name)
+                extension['action'] = 'keep'
+
+            if extension['type'] == 'base': # base library with no version
                 indx = self.code[self.ptr_head:].find(name)
                 indx += self.ptr_head + len(name) + 2
                 self.write_chunk(indx)
-                continue
-            if extension['action'] in ['keep', 'update']:
+            elif extension['action'] in ['keep', 'update']:
                 self.rewrite_extension(extension)
                 # sys.exit(0)
             elif extension['action'] == 'duplicate':
+                print('Duplicate: %s' % name)
                 name_indx = self.code[self.ptr_head:].find(name)
                 name_indx += self.ptr_head + len(name)
                 indx = self.code[name_indx:].find('),') + name_indx + 3
                 self.ptr_head = indx
                 continue
-            elif extensio['action'] in ['add','dep']:
+            elif extension['action'] in ['add','dep']:
                 output = self.output_module(extension)
                 self.out.write("%s\n" % output) 
         self.out.write(self.code[self.ptr_head:])
@@ -433,12 +432,8 @@ class R(ExtsList):
         resp = requests.get(url=cran_list + pkg['name'])
         if resp.status_code != 200:
             return "not found"
-# X
         cran_info = resp.json()
         pkg['meta']['version'] = cran_info['Version']
-        if 'MD5sum' in cran_info:
-            pkg['checksums'] = cran_info['MD5sum'] 
-            pprint('MD5sum')
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
             return 'base package'
         pkg['meta']['requires'] = []
@@ -446,8 +441,6 @@ class R(ExtsList):
             pkg['meta']['requires'].extend(cran_info[u"Depends"].keys())
         if u"Imports" in cran_info:
             pkg['meta']['requires'].extend(cran_info[u"Imports"].keys())
-        print('R depends:')
-        pprint(pkg['meta']['requires'])
         return 'ok'
 
 
@@ -460,7 +453,6 @@ class R(ExtsList):
         bioc_data['pkg']['Depends', 'Imports', 'Biobase', 'graphics', 'URL']
         """
         status = 'ok'
-        pkg['meta']['requires'] = []
         if pkg['name'] in self.bioc_data:
             pkg['meta']['version'] = self.bioc_data[pkg['name']]['Version']
             if 'Depends' in self.bioc_data[pkg['name']]:
@@ -471,41 +463,34 @@ class R(ExtsList):
                            for s in self.bioc_data[pkg['name']]['Imports']])
         else:
             status = "not found"
-        if self.debug: print('%s: Depends on: %s' % (pkg['name'], 
-                             pkg['meta']['requires']))
         return status
 
     def print_depends(self, pkg):
         """ used for debugging """
-        for p in pkg['requires']:
+        for p in pkg['meta']['requires']:
             if p not in self.depend_exclude:
                 print("%20s : requires %s" % (pkg['name'], p))
 
     def get_package_info(self, pkg):
         """R version, check CRAN and BioConductor for version information
         """
-        print('get_package_info: %s' % pkg['name'])
-        pkg['meta'] = {}
+        if self.debug: print('get_package_info: %s' % pkg['name'])
+        pkg['meta']['requires'] = []
         status = self.get_BioC_info(pkg)
         if status == 'not found':
             status = self.get_CRAN_info(pkg)
             pkg['R_source'] = 'ext_options'
         else:
             pkg['R_source'] = 'bioconductor_options'
+        if self.debug: self.print_depends(pkg)
         return status
 
 
     def output_module(self, pkg):
         """R version: format a pkg for output"""
-        output = "%s('%s', '%s', " % (self.indent, pkg['name'], pkg['version'])
-        for source in pkg['spec'].keys():
-           if source == 'R_source': 
-               output += pkg['R_source'] 
-           elif source == 'ext_options':
-               output += 'ext_options),'
-           elif source == 'bioconductor_options':
-               output += 'bioconductor_options),'
-        output += '),'
+        output = "%s('%s', '%s', %s)," % (self.indent, pkg['name'],
+                                            pkg['version'],
+                                            pkg['R_source'])
         return output
 
 
@@ -655,7 +640,6 @@ class PythonExts(ExtsList):
         # only set this if not set
         if 'source_urls' not in pkg['spec'] and version != pkg['version']:
             pkg['spec']['source_urls'] = "['PYPI_SOURCE']" 
-        pkg['checksums'] = pkg['meta']['digests']['sha256']
         return status
 
 
@@ -672,10 +656,7 @@ class PythonExts(ExtsList):
            if item in ['name', 'version', 'action', 'type', 'orig_ver',
                        'processed', 'meta', 'spec']:
                continue 
-           if item == 'checksums':
-               output += list_fmt % (item, pkg[item])
-           else:
-               output += item_fmt % (item, pkg[item])
+           output += item_fmt % (item, pkg[item])
         for item in pkg['spec'].keys():
            output += item_fmt % (item, pkg['spec'][item])
         output += self.indent + "}),"

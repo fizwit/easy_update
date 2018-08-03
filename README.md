@@ -30,7 +30,7 @@ BioConductor will not be searched. **Example** ``biocver = 3.6``.
 * **--search** [modulename] Search is used to lookup a single module as an argument.  Search does not read or write to a file. Dependencies will be output if found. This is handy for checking new packages.
 Search requires the command line arguments; --pyver or --rver and --biocver to determine which repository to search.
 
-* **--meta** Display all metadata available from a repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
+* **--meta** Display metadata available from the repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
 
 * **--pyver**  Only use in conjunction with search.  Specify only the major minor version numbers; --pyver 3.6.
 
