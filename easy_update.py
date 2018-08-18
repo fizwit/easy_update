@@ -78,7 +78,7 @@ class ExtsList(object):
             self.eb_filename += '-' + eb.toolchain['version']
             try:
                 self.eb_filename += eb.versionsuffix
-            except AttributeError, NameError:
+            except (AttributeError, NameError):
                 print('versionsuffix not defined')
             try: 
                 self.biocver = eb.biocver
@@ -256,8 +256,8 @@ class ExtsList(object):
                 msg = "Warning: %s is dependency, but can't be found!"
                 print(msg % pkg['name'])
                 return
-
-        if pkg['version'] == pkg['meta']['version']:
+        version = pkg['meta']['version']
+        if pkg['version'] == version:
             pkg['action'] = 'keep'
         else:
             pkg['orig_ver'] = pkg['version']
@@ -531,37 +531,13 @@ class PythonExts(ExtsList):
         require_re = '^([A-Za-z0-9_\-\.]+)(?:.*)$'
         extra_re = "and\sextra\s==\s'([A-Za-z0-9_\-\.]+)'"  # only if the
         targets = ['python_version', 'sys_platform', 'extra']
-        ans = re.search(require_re, requires)
-        name = ans.group(1)
-        state = True    # result of eval(requires)
+        for req in requires:
+            try:
+                dep, version = req.split()
+                req = dep
+            except ValueError:         
+                pass
 
-        version = requires.split(';')
-        if len(version) > 1:
-            for target in targets:
-                if target in version[1]:
-                    try:
-                        state = eval(version[1])
-                    except NameError:
-                        print('Error: NameError on eval, ignoring')
-                    except SyntaxError:
-                        pass
-                    if target == 'extra':
-                        extra = re.search(extra_re, version[1])
-                        extra = extra.group(1) if extra else None
-                        if extra not in [i[0] for i in self.exts_processed]:
-                            extra = None
-        if state:
-            if self.verbose > 1:
-                if name not in [i[0] for i in self.exts_processed] and (
-                   name not in self.depend_exclude):
-                    print('Add dependent package: %s ' % name),
-                    print('for: %s, Expression: %s' % (pkg_name, requires))
-            return name
-        else:
-            if self.verbose > 1:
-                print('Do not install: %s, ' % name +
-                      'for package: %s, Expression: %s' % (pkg_name, requires))
-            return None
 
     def print_meta(self, meta):
         """ Display meta from pypi.org
@@ -628,10 +604,15 @@ class PythonExts(ExtsList):
         project = resp.json()
         version = project['info']['version']
         pkg['meta'].update(project['info'])
-        #pkg['meta']['version'] = version
+#XX clean up requires
+        requires = project['info']['requires_dist']
+        self.parse_pypi_requires(pkg['name'], requires)
+        pkg['meta']['requires'] = requires 
+        pkg['meta']['version'] = version 
         for ver in project['releases'][version]:
             if 'packagetype' in ver and ver['packagetype'] == 'sdist':
-                pkg['meta'].update(ver)
+                pkg['meta']['url'] = ver['url']
+                pkg['meta']['filename'] = ver['filename']
                 status = 'ok'
                 break
         # one last try to find package release data
