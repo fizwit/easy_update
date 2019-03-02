@@ -172,18 +172,36 @@ class FrameWork:
         name_indx += self.ptr_head + len(name) + 1
         indx = self.code[name_indx:].find("'") + name_indx + 1
         self.write_chunk(indx)
-        self.out.write("%s'," % pkg['version'])
-        self.ptr_head = self.code[self.ptr_head:].find(',') + self.ptr_head + 1
+        self.out.write("%s'" % pkg['version'])
+        self.ptr_head = self.code[self.ptr_head:].find("'") + self.ptr_head + 1
         indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
         self.write_chunk(indx)
 
-    def output_module(self, pkg):
+    def output_module(self, lang, pkg):
         """
         """
-        pass
+        if lang == 'R':
+            output = "%s('%s', '%s')," % (self.indent, pkg['name'],
+                                          pkg['version'])
+        elif lang == 'Python':
+            pkg_fmt = self.indent + "('%s', '%s', {\n"
+            item_fmt = self.indent + self.indent + "'%s': %s,\n"
+            list_fmt = self.indent + self.indent + "'%s': ['%s'],\n"
+            output = pkg_fmt % (pkg['name'], pkg['version'])
+            for item in pkg.keys():
+                if item in ['name', 'version', 'action', 'type', 'orig_ver',
+                            'processed', 'meta', 'spec']:
+                    continue
+                output += item_fmt % (item, pkg[item])
+            for item in pkg['spec'].keys():
+                output += item_fmt % (item, pkg['spec'][item])
+            output += self.indent + "}),"
+        return output
 
-    def print_update(self, exts_list):
+    def print_update(self, lang, exts_list):
         """ this needs to be re-written in a Pythonesque manor
+        unable to rewrite bundles where 'name' and 'version' are used in the source text
+        if module name matches extension name then skip
         """
         indx = self.code.find('exts_list')
         indx += self.code[indx:].find('[')
@@ -193,16 +211,20 @@ class FrameWork:
         for extension in exts_list:
             name = extension['name']
             if 'action' not in extension:
-                print('No action: %s' % name)
+                sys.stderr.write('No action: %s\n' % name)
                 extension['action'] = 'keep'
 
-            if extension['type'] == 'base':  # base library with no version
+            if self.name.lower() == name.lower():
+                # speical case for bundles, if "name" is used in exts_list
+                indx = self.code[self.ptr_head:].find('),') + 2
+                indx += self.ptr_head
+                self.write_chunk(indx)
+            elif extension['type'] == 'base':  # base library with no version
                 indx = self.code[self.ptr_head:].find(name)
                 indx += self.ptr_head + len(name) + 2
                 self.write_chunk(indx)
             elif extension['action'] in ['keep', 'update']:
                 self.rewrite_extension(extension)
-                # sys.exit(0)
             elif extension['action'] == 'duplicate':
                 print('Duplicate: %s' % name)
                 name_indx = self.code[self.ptr_head:].find(name)
@@ -211,7 +233,7 @@ class FrameWork:
                 self.ptr_head = indx
                 continue
             elif extension['action'] in ['add', 'dep']:
-                output = self.output_module(extension)
+                output = self.output_module(lang, extension)
                 self.out.write("%s\n" % output)
         self.out.write(self.code[self.ptr_head:])
 
@@ -408,8 +430,6 @@ class UpdateExts:
             if self.verbose:
                 self.stats()
 
-
-
     def stats(self):
         sys.stderr.write("Updated Packages: %d\n" % self.pkg_update)
         sys.stderr.write("New Packages: %d\n" % self.pkg_new)
@@ -440,7 +460,7 @@ class updateR(UpdateExts):
             print('BioCondutor verserion: biocver not set')
         self.UpdateExts()
         if eb:
-            eb.print_update(self.exts_processed)
+            eb.print_update('R', self.exts_processed)
 
     def read_bioconductor_pacakges(self):
         """ read the Bioconductor package list into bio_data dict
@@ -527,11 +547,9 @@ class updateR(UpdateExts):
         return status
 
     def output_module(self, pkg):
-        """R version: format a pkg for output"""
         output = "%s('%s', '%s')," % (self.indent, pkg['name'],
                                           pkg['version'])
         return output
-
 
 class updatePython(UpdateExts):
     """extend ExtsList class to update package names from PyPI
@@ -559,7 +577,7 @@ class updatePython(UpdateExts):
             print('Python Search PyPi: %s' % self.search_pkg)
         self.UpdateExts()
         if eb:
-            eb.print_update(self.exts_processed)
+            eb.print_update('Python', self.exts_processed)
 
     def get_pypi_pkg_data(self, pkg, version=None):
         """
@@ -708,25 +726,6 @@ class updatePython(UpdateExts):
             url = "['https://pypi.io/packages/source/%s/%s']"
             pkg['spec']['source_urls'] = url % (pkg['name'][0], pkg['name'])
         return status
-
-    def output_module(self, pkg):
-        """Python version: format single pkg for output.
-        Used if --search argument is used.
-        if self.search_pkg:
-        """
-        pkg_fmt = self.indent + "('%s', '%s', {\n"
-        item_fmt = self.indent + self.indent + "'%s': %s,\n"
-        list_fmt = self.indent + self.indent + "'%s': ['%s'],\n"
-        output = pkg_fmt % (pkg['name'], pkg['version'])
-        for item in pkg.keys():
-            if item in ['name', 'version', 'action', 'type', 'orig_ver',
-                        'processed', 'meta', 'spec']:
-                continue
-            output += item_fmt % (item, pkg[item])
-        for item in pkg['spec'].keys():
-            output += item_fmt % (item, pkg['spec'][item])
-        output += self.indent + "}),"
-        return output
 
 
 def help():
