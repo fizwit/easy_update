@@ -53,14 +53,15 @@ class FrameWork:
     methods:
         print_update()
     """
-    def __init__(self, args, filename):
-        self.debug = True
+    def __init__(self, args, filename, primary):
+        self.debug = False
         self.code = None
         self.pyver = None
         self.search_pkg = None
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ptr_head = 0
+        self.modulename = None
 
         # update EasyConfig exts_list or check single package
         if args.easyconfig:
@@ -82,8 +83,11 @@ class FrameWork:
                 self.versionsuffix = eb.versionsuffix
                 self.modulename += eb.versionsuffix
             except (AttributeError, NameError):
-                eb.versionsuffix = None
+                self.versionsuffix = None
             self.modulename = self.modulename % self.interpolate
+            if self.debug:
+                sys.stderr.write('debug - modulename: %s\n' % self.modulename)
+                sys.stderr.write('debug -       file: %s\n' % filename[:-3])
             try:
                 self.dependencies = eb.dependencies
             except (AttributeError, NameError):
@@ -94,8 +98,9 @@ class FrameWork:
                     print('biocver: %s' % self.biocver)
             except (AttributeError, NameError):
                 pass
-            self.check_eb_package_name(args.easyconfig)
-            self.out = open(args.easyconfig[:-3] + ".update", 'w')
+            if primary:
+                self.check_eb_package_name(args.easyconfig)
+                self.out = open(args.easyconfig[:-3] + ".update", 'w')
         elif args.search_pkg:
             self.search_pkg = args.search_pkg
             if args.biocver:
@@ -158,8 +163,6 @@ class FrameWork:
         """
         f_name = os.path.basename(easyconfig)[:-3]
         name_classification = f_name.split('-')
-        if name_classification[0] != self.name:
-            return
         if f_name != self.modulename:
             sys.stderr.write("Warning: file name does not match easybuild " +
                              "module name\n"),
@@ -261,6 +264,7 @@ class UpdateExts:
         self.ext_list_len = 1
         self.exts_dep = list()
         self.depend_exclude = list()
+
         if dep_eb:
             for exten in dep_eb.exts_list:
                 if isinstance(exten, tuple):
@@ -460,10 +464,13 @@ class UpdateR(UpdateExts):
             self.biocver = args.biocver
         except NameError:
             self.biocver = None
+        try:
+            self.biocver = eb.biocver
+        except NameError:
+            self.biocver = None
+            print('BioCondutor version: biocver not set')
         if self.biocver:
             self.read_bioconductor_pacakges()
-        else:
-            print('BioCondutor verserion: biocver not set')
         self.updateexts()
         if eb:
             eb.print_update('R', self.exts_processed)
@@ -780,7 +787,7 @@ def main():
     dep_eb = None
     if args.easyconfig:
         eb_name = os.path.basename(args.easyconfig)
-        eb = FrameWork(args, eb_name)
+        eb = FrameWork(args, eb_name, True)
     elif args.search_pkg:
         eb_name = ''
         eb = None
@@ -789,7 +796,7 @@ def main():
               'specified with --search pkg_name')
         sys.exit()
 
-    if args.rver or eb_name[:2] == 'R-':
+    if args.rver or eb_name[:3] == 'R-3':
         lang = 'R'
     elif args.pyver or eb_name[:7] == 'Python-':
         lang = 'Python'
@@ -802,7 +809,7 @@ def main():
                     dep_filename = '%s-%s-%s-%s.eb' % (x[0], x[1],
                                                        eb.toolchain['name'],
                                                        eb.toolchain['version'])
-                    dep_eb = FrameWork(args, dep_filename)
+                    dep_eb = FrameWork(args, dep_filename, False)
     else:
         print('Could not determine language [R, Python]')
         sys.exit(1)
