@@ -19,7 +19,7 @@ Release Notes
 2.0.0 2019-02-26 New feature to resolve dependent packages
    for R and Python bundles. Read exts_list for R and Python listed in
     depenendencies. Refactor code into Two magor classes: FrameWork and
-    UpdateExts. Rename subclasses for for R and Python: updateR updatePython.
+    UpdateExts. Rename subclasses for for R and Python: UpdateR UpdatePython.
     This will help with migration into the EB FrameWork.
     Fix bug with pkg_update counter
 
@@ -63,7 +63,7 @@ class FrameWork:
         self.ptr_head = 0
 
         # update EasyConfig exts_list or check single package
-        if args.EasyConfig:
+        if args.easyconfig:
             eb = self.parse_eb(filename, primary=True)
             self.exts_list = eb.exts_list
             self.toolchain = eb.toolchain
@@ -94,8 +94,8 @@ class FrameWork:
                     print('biocver: %s' % self.biocver)
             except (AttributeError, NameError):
                 pass
-            self.check_eb_package_name(args.EasyConfig)
-            self.out = open(args.EasyConfig[:-3] + ".update", 'w')
+            self.check_eb_package_name(args.easyconfig)
+            self.out = open(args.easyconfig[:-3] + ".update", 'w')
         elif args.search_pkg:
             self.search_pkg = args.search_pkg
             if args.biocver:
@@ -121,12 +121,17 @@ class FrameWork:
         """
         header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
         header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
-        header += 'PYPI_SOURCE = "https://pypi.io/packages/source/'
-        header += '%(nameletter)s/%(name)s"\n'
+        header += 'SOURCELOWER_TAR_GZ = "%(namelower)s-%(version)s.tar.gz"\n'
+        header += 'PYPI_SOURCE = "https://pypi.python.org/packages/source/%(nameletter)s/%(name)s"\n'
+        header += 'SOURCEFORGE_SOURCE = "https://download.sourceforge.net/%(namelower)s"\n'
 
         eb = imp.new_module("EasyConfig")
-        with open(file_name, "r") as f:
-            code = f.read()
+        try:
+            with open(file_name, "r") as f:
+                code = f.read()
+        except IOError as err:
+            print("opening %s: %s" % (file_name, err))
+            sys.exit(1)
         try:
             exec (header + code, eb.__dict__)
         except Exception as err:
@@ -147,11 +152,11 @@ class FrameWork:
             if dep[0] == 'R':
                 self.interpolate['rver'] = dep[1]
 
-    def check_eb_package_name(self, EasyConfig):
+    def check_eb_package_name(self, easyconfig):
         """" check that easybuild filename matches package name
-        EasyConfig is filename of EasyConfig file
+        easyconfig is original filename
         """
-        f_name = os.path.basename(EasyConfig)[:-3]
+        f_name = os.path.basename(easyconfig)[:-3]
         name_classification = f_name.split('-')
         if name_classification[0] != self.name:
             return
@@ -178,7 +183,7 @@ class FrameWork:
         self.write_chunk(indx)
 
     def output_module(self, lang, pkg):
-        """
+        """write exts_list entry
         """
         if lang == 'R':
             output = "%s('%s', '%s')," % (self.indent, pkg['name'],
@@ -200,7 +205,6 @@ class FrameWork:
 
     def print_update(self, lang, exts_list):
         """ this needs to be re-written in a Pythonesque manor
-        unable to rewrite bundles where 'name' and 'version' are used in the source text
         if module name matches extension name then skip
         """
         indx = self.code.find('exts_list')
@@ -263,9 +267,10 @@ class UpdateExts:
                     self.exts_dep.append(exten[0])
                 else:
                     self.exts_dep.append(exten)
-        if args.EasyConfig:
+        if args.easyconfig:
             self.exts_orig = eb.exts_list
-            self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(), 'version': eb.version}
+            self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
+                                'version': eb.version}
         if self.search_pkg:
             self.search_pkg = args.search_pkg
             if args.biocver:
@@ -339,6 +344,7 @@ class UpdateExts:
     def print_meta(self, info):
         """ print meta data from repository
         this is broken for R
+        :param info: dict
         """
         pass
 
@@ -395,9 +401,9 @@ class UpdateExts:
         if 'requires' in pkg['meta'] and pkg['meta']['requires'] is not None:
             for depend in pkg['meta']['requires']:
                 if depend not in self.depend_exclude:
-                    depPkg = {'name': depend, 'version': 'x', 'type': 'dep',
-                              'spec': {}, 'meta': {}}
-                    self.check_package(depPkg)
+                    dep_pkg = {'name': depend, 'version': 'x', 'type': 'dep',
+                               'spec': {}, 'meta': {}}
+                    self.check_package(dep_pkg)
         self.processed(pkg)
         self.ext_counter += 1
         if self.search_pkg:
@@ -408,7 +414,7 @@ class UpdateExts:
         if self.meta:
             self.print_meta(pkg['meta'])
 
-    def UpdateExts(self):
+    def updateexts(self):
         """Loop through exts_list and check which packages need to be updated.
         this is an external method for the class
         """
@@ -439,7 +445,7 @@ class UpdateExts:
         pass
 
 
-class updateR(UpdateExts):
+class UpdateR(UpdateExts):
     """extend UpdateExts class to update package names from CRAN and BioCondutor
     """
     def __init__(self, args, eb, deps_eb):
@@ -458,7 +464,7 @@ class updateR(UpdateExts):
             self.read_bioconductor_pacakges()
         else:
             print('BioCondutor verserion: biocver not set')
-        self.UpdateExts()
+        self.updateexts()
         if eb:
             eb.print_update('R', self.exts_processed)
 
@@ -480,7 +486,7 @@ class updateR(UpdateExts):
                 pkgcount = len(self.bioc_data.keys())
                 print('size: %s' % pkgcount)
 
-    def get_CRAN_info(self, pkg):
+    def get_cran_info(self, pkg):
         """ MD5sum, Description, Package, releases[]
         """
         cran_list = "http://crandb.r-pkg.org/"
@@ -500,7 +506,7 @@ class updateR(UpdateExts):
             pkg['meta']['requires'].extend(cran_info[u"Imports"].keys())
         return 'ok'
 
-    def get_BioC_info(self, pkg):
+    def get_bioc_info(self, pkg):
         """Extract <Depends> and <Imports> from BioCondutor json metadata
         Example:
         bioc_data['pkg']['Depends']
@@ -539,19 +545,20 @@ class updateR(UpdateExts):
         if self.debug:
             print('get_package_info: %s' % pkg['name'])
         pkg['meta']['requires'] = []
-        status = self.get_BioC_info(pkg)
+        status = self.get_bioc_info(pkg)
         if status == 'not found':
-            status = self.get_CRAN_info(pkg)
+            status = self.get_cran_info(pkg)
         if self.debug:
             self.print_depends(pkg)
         return status
 
     def output_module(self, pkg):
         output = "%s('%s', '%s')," % (self.indent, pkg['name'],
-                                          pkg['version'])
+                                      pkg['version'])
         return output
 
-class updatePython(UpdateExts):
+
+class UpdatePython(UpdateExts):
     """extend ExtsList class to update package names from PyPI
     Python Issues
        There are many small inconsistancies with PyPi which make it difficult
@@ -575,7 +582,7 @@ class updatePython(UpdateExts):
             self.depend_exclude.extends(['argparse', 'asyncio'])
         if self.debug and self.search_pkg:
             print('Python Search PyPi: %s' % self.search_pkg)
-        self.UpdateExts()
+        self.updateexts()
         if eb:
             eb.print_update('Python', self.exts_processed)
 
@@ -766,13 +773,13 @@ def main():
     parser.add_argument(
         '--meta', dest='meta', required=False, action='store_true',
         help='output all meta data keys from Pypi, (default: false)')
-    parser.add_argument('EasyConfig', nargs='?')
+    parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
     lang = None
     dep_eb = None
-    if args.EasyConfig:
-        eb_name = os.path.basename(args.EasyConfig)
+    if args.easyconfig:
+        eb_name = os.path.basename(args.easyconfig)
         eb = FrameWork(args, eb_name)
     elif args.search_pkg:
         eb_name = ''
@@ -801,9 +808,9 @@ def main():
         sys.exit(1)
 
     if lang == 'R':
-        module = updateR(args, eb, dep_eb)
+        module = UpdateR(args, eb, dep_eb)
     elif lang == 'Python':
-        module = updatePython(args, eb, dep_eb)
+        module = UpdatePython(args, eb, dep_eb)
 
 if __name__ == '__main__':
     main()
