@@ -44,6 +44,10 @@ Search requires the command line arguments; --pyver or --rver and --biocver to d
 
 * **--meta** Display metadata available from the repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
 
+* **--Meta** Use with --search only. Output package metadata and exit.
+
+* **--tree** For use with --search option, output inverted dependancy tree for a package.
+ 
 * **--pyver**  Only use in conjunction with search.  Specify only the major minor version numbers; --pyver 3.6.
 
 * **--rver, --biocver** Only use in conjunction with search.  Specify only the major minor version numbers
@@ -74,6 +78,9 @@ defined outside of the `ext_list` declaration.
     ('zlibbioc', '1.24.0'),
     ('BiocGenerics', '0.24.0'),
 ```
+
+### Examples
+ * [Examples](Examples.md)
 
 ### TODO
 Integrate with EasyBuild FrameWork. Version two of EasyUpdate has been refactored to 
