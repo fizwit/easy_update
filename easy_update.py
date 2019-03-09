@@ -16,6 +16,11 @@ is updated for modules in exts_list. Use langugue specific APIs for resolving
 current version for each package.
 
 Release Notes
+2.0.1 2019.03.08 improve parse_pypi_requires to remove 'dev', 'tests' and
+   'docs' related dependancies. Dependancies for pytest when fom 173 packages
+   to 27. --Meta and --tree have been added as options to help with debugging
+   Python dependencies.
+
 2.0.0 2019-02-26 New feature to resolve dependent packages
    for R and Python bundles. Read exts_list for R and Python listed in
     depenendencies. Refactor code into Two magor classes: FrameWork and
@@ -42,9 +47,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Feb 26, 2019'
+__date__ = 'Mar  8, 2019'
 
 
 class FrameWork:
@@ -199,7 +204,7 @@ class FrameWork:
             output = pkg_fmt % (pkg['name'], pkg['version'])
             for item in pkg.keys():
                 if item in ['name', 'version', 'action', 'type', 'orig_ver',
-                            'processed', 'meta', 'spec']:
+                            'processed', 'meta', 'level', 'spec']:
                     continue
                 output += item_fmt % (item, pkg[item])
             for item in pkg['spec'].keys():
@@ -252,11 +257,11 @@ class UpdateExts:
     def __init__(self, args, eb, dep_eb):
         """
         """
-        self.debug = False
         self.verbose = args.verbose
-        self.tree = args.tree
-        self.meta = args.meta
-        self.Meta = args.Meta
+        self.debug = False
+        self.tree = False
+        self.meta = False
+        self.Meta = False
         self.search_pkg = args.search_pkg
         self.ext_counter = 0
         self.pkg_update = 0
@@ -281,6 +286,9 @@ class UpdateExts:
                                 'version': eb.version}
         if self.search_pkg:
             self.search_pkg = args.search_pkg
+            self.meta = args.meta
+            self.Meta = args.Meta
+            self.tree = args.tree
             if args.biocver:
                 self.biocver = args.biocver
             if args.pyver:
@@ -783,7 +791,7 @@ class UpdatePython(UpdateExts):
             output = pkg_fmt % (pkg['name'], pkg['version'])
             for item in pkg.keys():
                 if item in ['name', 'version', 'action', 'type', 'orig_ver',
-                            'processed', 'meta', 'spec']:
+                            'processed', 'meta', 'level', 'spec']:
                     continue
                 output += item_fmt % (item, pkg[item])
             for item in pkg['spec'].keys():
