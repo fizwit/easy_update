@@ -142,11 +142,11 @@ class R(ExtsList):
 
         if 'bioconductor' in self.pkg_name.lower():
             self.bioconductor = True
-            self.read_bioconductor_pacakges()
+            self.read_bioconductor_packages()
         else:
             self.bioconductor = False
 
-    def read_bioconductor_pacakges(self):
+    def read_bioconductor_packages(self):
         """ read the Bioconductor package list into bio_data dict
             """
         self.bioc_urls = [
