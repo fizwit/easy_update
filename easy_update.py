@@ -863,17 +863,19 @@ def main():
         lang = 'R'
     elif args.pyver or eb_name[:7] == 'Python-':
         lang = 'Python'
-    elif lang is None:
-        if eb.dependencies:
-            for x in eb.dependencies:
-                if x[0] == 'R' or x[0] == 'Python':
-                    if lang is None:
-                        lang = x[0]
+    if eb.dependencies:
+        for x in eb.dependencies:
+            if x[0] == 'R' or x[0] == 'Python':
+                dep_lang = x[0]
+                if lang is None:
+                    lang = x[0]
+                if dep_lang == lang:
                     dep_filename = '%s-%s-%s-%s.eb' % (x[0], x[1],
                                                        eb.toolchain['name'],
                                                        eb.toolchain['version'])
+                    print("reading dependencies: %s" % dep_filename)
                     dep_eb = FrameWork(args, dep_filename, False)
-    else:
+    if not lang:
         print('Could not determine language [R, Python]')
         sys.exit(1)
 
