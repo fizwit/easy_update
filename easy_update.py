@@ -16,6 +16,8 @@ is updated for modules in exts_list. Use langugue specific APIs for resolving
 current version for each package.
 
 Release Notes
+2.0.2 fixed issue: could not open easyconfig if it was not in the present
+   working directory.
 2.0.1 2019.03.08 improve parse_pypi_requires to remove 'dev', 'tests' and
    'docs' related dependancies. Dependancies for pytest when fom 173 packages
    to 27. --Meta and --tree have been added as options to help with debugging
@@ -47,9 +49,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Mar  8, 2019'
+__date__ = 'Apr 26, 2019'
 
 
 class FrameWork:
@@ -163,18 +165,18 @@ class FrameWork:
             if dep[0] == 'R':
                 self.interpolate['rver'] = dep[1]
 
-    def check_eb_package_name(self, easyconfig):
+    def check_eb_package_name(self, filename):
         """" check that easybuild filename matches package name
         easyconfig is original filename
         """
-        f_name = os.path.basename(easyconfig)[:-3]
-        name_classification = f_name.split('-')
-        if f_name != self.modulename:
+        eb_name = os.path.basename(filename)[:-3]
+        name_classification = eb_name.split('-')
+        if eb_name != self.modulename:
             sys.stderr.write("Warning: file name does not match easybuild " +
                              "module name\n"),
-        if f_name != self.modulename or self.debug:
+        if eb_name != self.modulename or self.debug:
             sys.stderr.write("   file name: %s\n module name: %s\n" % (
-                f_name, self.modulename))
+                eb_name, self.modulename))
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
@@ -850,7 +852,7 @@ def main():
     dep_eb = None
     if args.easyconfig:
         eb_name = os.path.basename(args.easyconfig)
-        eb = FrameWork(args, eb_name, True)
+        eb = FrameWork(args, args.easyconfig, True)
     elif args.search_pkg:
         eb_name = ''
         eb = None
@@ -863,7 +865,7 @@ def main():
         lang = 'R'
     elif args.pyver or eb_name[:7] == 'Python-':
         lang = 'Python'
-    if eb.dependencies:
+    if eb and eb.dependencies:
         for x in eb.dependencies:
             if x[0] == 'R' or x[0] == 'Python':
                 dep_lang = x[0]
