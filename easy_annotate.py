@@ -5,15 +5,20 @@ import sys
 import imp
 import json
 import ssl
-from datetime import datetime
+from datetime import date
 import requests
 import urllib2
 import xmlrpclib
+from pprint import pprint
 
 __author__ = "John Dey"
-__version__ = "1.0.1"
+__version__ = "2.0.1"
+__date__ = "April 3, 2019"
 __email__ = "jfdey@fredhutch.org"
 
+"""Versioin 1.x create HTML output
+   Version 2 create Markdown output
+"""
 
 class ExtsList(object):
     """ Easy Anotate is a utilty program for documenting EasyBuild easyconfig
@@ -23,6 +28,7 @@ class ExtsList(object):
     """
 
     def __init__(self, file_path, verbose=False):
+        self.debug = False 
         self.verbose = verbose
         self.pkg_count = 0
 
@@ -37,6 +43,11 @@ class ExtsList(object):
             self.pkg_name += eb.versionsuffix
         except (AttributeError, NameError):
             pass
+        try:
+            self.biocver = eb.biocver
+        except (AttributeError, NameError):
+            print("biocver not set")
+            pass
         file_name = os.path.basename(file_path)
         f_name = os.path.basename(file_name)[:-3]
         print("Package: %s" % self.pkg_name)
@@ -44,7 +55,7 @@ class ExtsList(object):
             print("file name does not match module name. " +
                   "file name: %s, package: %s" % (f_name, self.pkg_name))
             sys.exit(0)
-        self.out = open(f_name + '.html', 'w')
+        self.out = open(f_name + '.md', 'w')
         self.html_header()
 
     @staticmethod
@@ -56,6 +67,7 @@ class ExtsList(object):
         """
         header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
         header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
+        header += 'PYPI_SOURCE = "https://pypi.org/project/%(name)s"\n'
         code = header
 
         eb = imp.new_module("easyconfig")
@@ -72,28 +84,14 @@ class ExtsList(object):
         """write html head block
         All custom styles are defined here.  No external css is used.
         """
-        block = """<!DOCTYPE html>
-<html>
-<head>
-  <title>Fred Hutchinson Cancer Research Center</title>
-  <title>EasyBuild Annotate extension list for R, Biocondotor and
- Python easyconfig files</title>
-  <style>
-    body {font-family: Helvetica,Arial,"Calibri","Lucida Grande",sans-serif;}
-    .ext_list a {color: black; text-decoration: none; font-weight: bold;}
-    .ext_list li:hover a:hover {color: #89c348;}
-    span.fh_green {color: #89c348;}  <!-- Hutch Green -->
-  </style>
-</head>
-<body>
-"""
+        today = date.today() 
+        date_string = '%d-%02d-%02d' % (today.year, today.month, today.day) 
+        block = '---\ntitle: %s\n' % self.pkg_name
+        block += 'date: %s\n---\n\n' % date_string
         self.out.write(block)
-        self.out.write('<h2><span class="fh_green">%s</span></h2>\n' %
-                       self.pkg_name)
-        self.out.write('<h3>Package List</h3>\n<div class="ext_list">\n')
 
     def exts2html(self):
-        self.out.write('  <ul style="list-style-type:none">\n')
+        self.out.write('### Package List\n')
         pkg_info = {}
         for pkg in self.extension:
             if isinstance(pkg, tuple):
@@ -112,18 +110,14 @@ class ExtsList(object):
         pkg_list.sort()
         for key in pkg_list:
             if pkg_info[key]['url'] == 'not found':
-                self.out.write('    <li>%s&emsp;%s</li>\n' %
-                               (key, pkg_info[key]['version']))
+                self.out.write('  * %s %s\n' % (key, pkg_info[key]['version']))
             else:
-                self.out.write('    <li><a href="%s">%s-%s</a>&emsp;%s</li>\n'
-                               % (pkg_info[key]['url'],
-                                  key,
-                                  pkg_info[key]['version'],
-                                  pkg_info[key]['description']))
-        self.out.write('  </ul>\n</div>\n')
-        self.out.write('  updated: %s\n' %
-                       "{:%B %d, %Y}".format(datetime.now()))
-        self.out.write('</body></html>\n')
+                msg = '  * [%s-%s](%s) %s\n' % (key,
+                                                pkg_info[key]['version'],
+                                                pkg_info[key]['url'],
+                                                pkg_info[key]['description'])
+                self.out.write(msg)
+        self.out.close()
 
     def get_package_url(self, pkg_name):
         pass
@@ -140,39 +134,29 @@ class R(ExtsList):
         self.bioc_data = {}
         self.bioc_urls = []
 
-        if 'bioconductor' in self.pkg_name.lower():
-            self.bioconductor = True
+        if self.biocver :
             self.read_bioconductor_pacakges()
-        else:
-            self.bioconductor = False
+            self.bioconductor = True
 
     def read_bioconductor_pacakges(self):
         """ read the Bioconductor package list into bio_data dict
             """
+        base_url = 'https://bioconductor.org/packages/json/%s' % self.biocver
         self.bioc_urls = [
-            ['packages',
-             'https://bioconductor.org/packages/json/3.4/bioc/packages.json',
-             'https://bioconductor.org/packages/release/bioc/html/'
-             ],
-            ['annotation',
-             'https://bioconductor.org/packages/json/3.4/data/annotation/packages.json',
-             'https://bioconductor.org/packages/release/data/annotation/html/'
-             ],
-            ['experiment',
-             'https://bioconductor.org/packages/json/3.4/data/experiment/packages.json',
-             'https://bioconductor.org/packages/release/data/experiment/html/'
-             ]
+             '%s/bioc/packages.json' % base_url,
+             '%s/data/annotation/packages.json' % base_url,
+             '%s/data/experiment/packages.json' % base_url,
         ]
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         for url in self.bioc_urls:
-            try:
-                response = urllib2.urlopen(url[1], context=ctx)
-            except IOError as e:
-                print('URL request: %s' % url[1])
-                sys.exit(e)
-            self.bioc_data[url[0]] = json.loads(response.read())
+            resp = requests.get(url)
+            if resp.status_code != 200:
+                print('Error: %s %s' % (resp.status_code, url))
+                sys.exit(1)
+            self.bioc_data.update(resp.json())
+            if self.debug:
+                print('reading Bioconductor Package inf: %s' % url)
+                pkgcount = len(self.bioc_data.keys())
+                print('size: %s' % pkgcount)
 
     @staticmethod
     def check_CRAN(pkg_name):
@@ -198,22 +182,25 @@ class R(ExtsList):
                      ['Imports']
                      ['Biobase', 'graphics', 'grDevices', 'venn', 'mclust',
                       'utils', 'MASS']
+            some fun fields in the MetaData:
+            ['Description', 'MD5sum', 'Package', 'URL', 'Version',etc...]
         """
         url = 'not found'
-        for bioc_pkg in self.bioc_urls:
-            if pkg_name in self.bioc_data[bioc_pkg[0]]:
-                url = bioc_pkg[2] + pkg_name + '.html'
-                description = self.bioc_data[bioc_pkg[0]][pkg_name]['Title']
+        base_url = 'https://www.bioconductor.org/packages/release/bioc/html/%s.html'
+        if pkg_name in self.bioc_data.keys():
+            url = base_url % pkg_name
+            description = self.bioc_data[pkg_name]['Title']
         if url == 'not found':
             url, description = self.check_CRAN(pkg_name)
             description = '[CRAN]&emsp;' + description
         return url, description
 
     def get_package_url(self, pkg_name):
-        if self.bioconductor:
+        url, description = self.check_CRAN(pkg_name)
+        if url == 'not found':
+            if self.debug:
+                print('package %s not found in CRAN, check Bioconductor' % pkg_name)
             url, description = self.check_BioC(pkg_name)
-        else:
-            url, description = self.check_CRAN(pkg_name)
         return url, description
 
 
