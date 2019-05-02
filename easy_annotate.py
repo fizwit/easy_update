@@ -171,7 +171,7 @@ class R(ExtsList):
                 description = cran_info[u'Title']
             except KeyError:
                 description = ''
-            url = 'https://cran.r-project.org/packages=%s' % pkg_name
+            url = 'https://cran.r-project.org/package=%s' % pkg_name
 
         return url, description
 
