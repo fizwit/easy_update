@@ -108,23 +108,6 @@ class FrameWork:
             if primary:
                 self.check_eb_package_name(args.easyconfig)
                 self.out = open(args.easyconfig[:-3] + ".update", 'w')
-        elif args.search_pkg:
-            self.search_pkg = args.search_pkg
-            if args.biocver:
-                self.biocver = args.biocver
-            if args.pyver:
-                self.name = "Python"
-                self.version = args.pyver
-            elif args.rver:
-                self.name = "R"
-                self.version = args.rver
-            else:
-                print('Languange and version must be specified with ' +
-                      '[--pyver x.x | --rver x.x | --biocver x.x]')
-            sea_pkg = {'name': args.search_pkg, 'version': 'x', 'type': 'add',
-                       'spec': {}, 'meta': {}
-                       }
-            self.search_ext = sea_pkg
 
     def parse_eb(self, file_name, primary):
         """ interpret EasyConfig file with 'exec'.  Interperting fails if
@@ -260,7 +243,7 @@ class UpdateExts:
         """
         """
         self.verbose = args.verbose
-        self.debug = False
+        self.debug = True 
         self.tree = False
         self.meta = False
         self.Meta = False
@@ -275,6 +258,7 @@ class UpdateExts:
         self.exts_dep = list()
         self.checking = list() # pytest -> attrs -> pytest
         self.depend_exclude = list()
+        self.exts_processed = list()
 
         if dep_eb:
             for exten in dep_eb.exts_list:
@@ -287,26 +271,29 @@ class UpdateExts:
             self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                                 'version': eb.version}
         if self.search_pkg:
+            self.name = args.name
             self.search_pkg = args.search_pkg
-            self.meta = args.meta
-            self.Meta = args.Meta
-            self.tree = args.tree
             if args.biocver:
                 self.biocver = args.biocver
             if args.pyver:
-                self.name = "Python"
                 self.version = args.pyver
             elif args.rver:
-                self.name = "R"
                 self.version = args.rver
             else:
                 print('Languange and version must be specified with ' +
                       '[--pyver x.x | --rver x.x | --biocver x.x]')
-            sea_pkg = {'name': args.search_pkg, 'version': 'x', 'type': 'add',
-                       'spec': {}, 'meta': {}
-                       }
-            self.search_ext = sea_pkg
-        self.exts_processed = list()
+            self.sea_pkg = {'name': args.search_pkg, 'version': '', 'type': 'orig',
+                       'level': 0, 'meta': {}}
+            # move exts from easyconfig into processed list
+            if args.easyconfig:
+                for ext in self.exts_orig:
+                    if isinstance(ext, tuple):
+                        name = ext[0] % self.interpolate
+                        version = ext[1] % self.interpolate
+                        pkg = {'name': name, 'version': version}
+                        self.processed(pkg)
+                    else:
+                        self.processed({'name': ext, 'type': 'base'}) 
 
     def is_processed(self, pkg):
         """ check if package has been previously processed
@@ -441,9 +428,9 @@ class UpdateExts:
         this is an external method for the class
         """
         if self.search_pkg:
-            pkg = {'name': self.search_pkg, 'version': '', 'type': 'orig',
-                   'spec': {}, 'level': 0, 'meta': {}}
-            self.check_package(pkg)
+            #pkg = {'name': self.search_pkg, 'version': '', 'type': 'orig',
+            #       'spec': {}, 'level': 0, 'meta': {}}
+            self.check_package(self.sea_pkg)
         else:
             self.ext_list_len = len(self.exts_orig)
             for ext in self.exts_orig:
@@ -488,13 +475,13 @@ class UpdateR(UpdateExts):
         if not self.biocver:
             try:
                 self.biocver = eb.biocver
-            except NameError:
+            except (AttributeError, NameError):
                 self.biocver = None
                 print('BioCondutor version: biocver not set')
         if self.biocver:
             self.read_bioconductor_pacakges()
         self.updateexts()
-        if eb:
+        if not self.search_pkg:
             eb.print_update('R', self.exts_processed)
 
     def read_bioconductor_pacakges(self):
@@ -625,7 +612,7 @@ class UpdatePython(UpdateExts):
         if self.debug and self.search_pkg:
             print('Python Search PyPi: %s' % self.search_pkg)
         self.updateexts()
-        if eb:
+        if not self.search_pkg:
             eb.print_update('Python', self.exts_processed)
 
     def get_pypi_pkg_data(self, pkg, version=None):
@@ -848,42 +835,45 @@ def main():
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
-    lang = None
+    args.name = None
     dep_eb = None
+    eb = None
     if args.easyconfig:
         eb_name = os.path.basename(args.easyconfig)
         eb = FrameWork(args, args.easyconfig, True)
-    elif args.search_pkg:
-        eb_name = ''
-        eb = None
-    else:
+        if eb.name == 'R':
+            args.rver = eb.version 
+            args.biocver = eb.biocver
+        if eb.name == 'Python':
+            args.pyver = eb.version
+    if (not args.search_pkg) and (not args.easyconfig):
         print('If no EasyConfig is given, a module name must be ' +
               'specified with --search pkg_name')
         sys.exit()
 
     if args.rver or eb_name[:3] == 'R-3':
-        lang = 'R'
+        args.name = 'R'
     elif args.pyver or eb_name[:7] == 'Python-':
-        lang = 'Python'
+        args.name = 'Python'
     if eb and eb.dependencies:
         for x in eb.dependencies:
             if x[0] == 'R' or x[0] == 'Python':
                 dep_lang = x[0]
-                if lang is None:
-                    lang = x[0]
-                if dep_lang == lang:
+                if args.name is None:
+                    args.name = x[0]
+                if dep_lang == args.name:
                     dep_filename = '%s-%s-%s-%s.eb' % (x[0], x[1],
                                                        eb.toolchain['name'],
                                                        eb.toolchain['version'])
                     print("reading dependencies: %s" % dep_filename)
                     dep_eb = FrameWork(args, dep_filename, False)
-    if not lang:
+    if not args.name:
         print('Could not determine language [R, Python]')
         sys.exit(1)
 
-    if lang == 'R':
+    if args.name == 'R':
         module = UpdateR(args, eb, dep_eb)
-    elif lang == 'Python':
+    elif args.name == 'Python':
         module = UpdatePython(args, eb, dep_eb)
 
 if __name__ == '__main__':
