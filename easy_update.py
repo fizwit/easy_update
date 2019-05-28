@@ -49,9 +49,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Apr 26, 2019'
+__date__ = 'May 28, 2019'
 
 
 class FrameWork:
