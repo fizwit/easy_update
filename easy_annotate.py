@@ -135,10 +135,10 @@ class R(ExtsList):
         self.bioc_urls = []
 
         if self.biocver :
-            self.read_bioconductor_pacakges()
+            self.read_bioconductor_packages()
             self.bioconductor = True
 
-    def read_bioconductor_pacakges(self):
+    def read_bioconductor_packages(self):
         """ read the Bioconductor package list into bio_data dict
             """
         base_url = 'https://bioconductor.org/packages/json/%s' % self.biocver
