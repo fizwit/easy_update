@@ -479,12 +479,12 @@ class UpdateR(UpdateExts):
                 self.biocver = None
                 print('BioCondutor version: biocver not set')
         if self.biocver:
-            self.read_bioconductor_pacakges()
+            self.read_bioconductor_packages()
         self.updateexts()
         if not self.search_pkg:
             eb.print_update('R', self.exts_processed)
 
-    def read_bioconductor_pacakges(self):
+    def read_bioconductor_packages(self):
         """ read the Bioconductor package list into bio_data dict
         """
         base_url = 'https://bioconductor.org/packages/json/%s' % self.biocver
