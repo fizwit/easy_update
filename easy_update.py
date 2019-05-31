@@ -135,6 +135,12 @@ class FrameWork:
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
+
+        # R module might have been installed without extensions.
+        # Start with an empty list if it is the case.
+        if 'exts_list' not in eb.__dict__:
+            eb.exts_list = []
+
         return eb
 
     def parse_dependencies(self, eb):
