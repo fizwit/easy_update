@@ -16,6 +16,8 @@ is updated for modules in exts_list. Use langugue specific APIs for resolving
 current version for each package.
 
 Release Notes
+2.0.4 Python issues, fixed bugs, but still not perfect
+2.0.3 more issues with Pypi
 2.0.2 fixed issue: could not open easyconfig if it was not in the present
    working directory.
 2.0.1 2019.03.08 improve parse_pypi_requires to remove 'dev', 'tests' and
@@ -49,9 +51,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.3'
+__version__ = '2.0.4'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'May 28, 2019'
+__date__ = 'June 18, 2019'
 
 
 class FrameWork:
@@ -245,8 +247,7 @@ class UpdateExts:
         self.verbose = args.verbose
         self.debug = True 
         self.tree = False
-        self.meta = False
-        self.Meta = False
+        self.meta = args.meta
         self.search_pkg = args.search_pkg
         self.ext_counter = 0
         self.pkg_update = 0
@@ -263,7 +264,10 @@ class UpdateExts:
         if dep_eb:
             for exten in dep_eb.exts_list:
                 if isinstance(exten, tuple):
-                    self.exts_dep.append(exten[0])
+                    if len(exten) == 3 and 'modulename' in exten[2]:
+                        self.exts_dep.append(exten[2]['modulename'])
+                    else:
+                        self.exts_dep.append(exten[0])
                 else:
                     self.exts_dep.append(exten)
         if args.easyconfig:
@@ -597,7 +601,7 @@ class UpdatePython(UpdateExts):
     """
     def __init__(self, args, eb, deps_eb):
         UpdateExts.__init__(self, args, eb, deps_eb)
-        self.debug = False
+        self.debug = True
         self.pkg_dict = None
         if eb:
             (nums) = eb.version.split('.')
@@ -697,18 +701,21 @@ class UpdatePython(UpdateExts):
         return dists
 
     def print_meta(self, meta):
-        """ Display meta from pypi.org
+        """ Display info from pypi.org
         """
         tags = ['filename', 'packagetype', 'url', 'python_version',
                 'requires_dist', 'summary', 'requires_python',
-                'classifiers']
-        if self.Meta:
+                'classifiers', 'description', 'platform']
+        if self.meta:
             for key in meta:
-                print("%s: %s" % (key, meta[key]))
-        else:
-            for tag in tags:
-                if tag in meta:
-                    print("%s: %s" % (tag, meta[tag]))
+                if key == 'description':
+                    print("%s: %s" % (key, meta[key][1:60]))
+                elif key == 'requires_dist':
+                    print('%s:' % 'requires_dist')
+                    for req in meta[key]:
+                        print("   %s" % req)
+                else:
+                    print("%s: %s" % (key, meta[key]))
 
     def get_package_info(self, pkg):
         """Python version
@@ -748,9 +755,6 @@ class UpdatePython(UpdateExts):
             return 'not found'
         status = 'not found'
         pkg['meta'].update(project['info'])
-        if self.Meta:
-            self.print_meta(project['info'])
-            sys.exit(0)
         new_version = pkg['meta']['version']
         requires = project['info']['requires_dist']
         pkg['meta']['requires'] = self.parse_pypi_requires(requires)
@@ -764,9 +768,13 @@ class UpdatePython(UpdateExts):
         if status != 'ok':
             status = self.get_pypi_release(pkg, new_version)
         # only set this if not set
-        if 'source_urls' not in pkg['spec'] and new_version != pkg['version']:
+        if 'spec' in pkg and ('source_urls' not in pkg['spec'] and
+                new_version != pkg['version']):
             url = "['https://pypi.io/packages/source/%s/%s']"
             pkg['spec']['source_urls'] = url % (pkg['name'][0], pkg['name'])
+        if self.meta:
+            self.print_meta(project['info'])
+            sys.exit(0)
         return status
 
     def output_module(self, pkg):
@@ -783,8 +791,9 @@ class UpdatePython(UpdateExts):
                             'processed', 'meta', 'level', 'spec']:
                     continue
                 output += item_fmt % (item, pkg[item])
-            for item in pkg['spec'].keys():
-                output += item_fmt % (item, pkg['spec'][item])
+            if 'spec' in pkg:
+                for item in pkg['spec'].keys():
+                    output += item_fmt % (item, pkg['spec'][item])
             output += self.indent + "}),"
         return output
 
@@ -829,9 +838,6 @@ def main():
     parser.add_argument(
         '--meta', dest='meta', required=False, action='store_true',
         help='output all meta data keys from Pypi, (default: false)')
-    parser.add_argument(
-        '--Meta', dest='Meta', required=False, action='store_true',
-        help='output all meta data keys from Pypi, (default: false)')
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
@@ -846,6 +852,8 @@ def main():
             args.biocver = eb.biocver
         if eb.name == 'Python':
             args.pyver = eb.version
+    else:
+        eb_name = ''
     if (not args.search_pkg) and (not args.easyconfig):
         print('If no EasyConfig is given, a module name must be ' +
               'specified with --search pkg_name')

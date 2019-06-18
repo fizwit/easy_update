@@ -91,6 +91,7 @@ class ExtsList(object):
         self.out.write(block)
 
     def exts2html(self):
+        self.out.write('### Known Issues\n * None')
         self.out.write('### Package List\n')
         pkg_info = {}
         for pkg in self.extension:
