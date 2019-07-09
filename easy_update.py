@@ -11,23 +11,25 @@ import requests
 
 """EasyUpdate performs package version updating for EasyBuild
 easyconfig files. Automates the the updating of version information for R,
-Python and bundels that extend R and Python. Pakage version information
-is updated for modules in exts_list. Use langugue specific APIs for resolving
+Python and bundles that extend R and Python. Package version information
+is updated for modules in exts_list. Use language specific APIs for resolving
 current version for each package.
 
 Release Notes
+2.0.5 Only one flag for debugging metadata '--meta'. Used with --verbose all
+    Metadata is output from Pypi. Try to fix package counter
 2.0.4 Python issues, fixed bugs, but still not perfect
 2.0.3 more issues with Pypi
 2.0.2 fixed issue: could not open easyconfig if it was not in the present
    working directory.
 2.0.1 2019.03.08 improve parse_pypi_requires to remove 'dev', 'tests' and
-   'docs' related dependancies. Dependancies for pytest when fom 173 packages
+   'docs' related dependencies. Dependencies for pytest when fom 173 packages
    to 27. --Meta and --tree have been added as options to help with debugging
    Python dependencies.
 
 2.0.0 2019-02-26 New feature to resolve dependent packages
    for R and Python bundles. Read exts_list for R and Python listed in
-    depenendencies. Refactor code into Two magor classes: FrameWork and
+    dependencies. Refactor code into Two major classes: FrameWork and
     UpdateExts. Rename subclasses for for R and Python: UpdateR UpdatePython.
     This will help with migration into the EB FrameWork.
     Fix bug with pkg_update counter
@@ -155,7 +157,6 @@ class FrameWork:
         easyconfig is original filename
         """
         eb_name = os.path.basename(filename)[:-3]
-        name_classification = eb_name.split('-')
         if eb_name != self.modulename:
             sys.stderr.write("Warning: file name does not match easybuild " +
                              "module name\n"),
@@ -181,13 +182,12 @@ class FrameWork:
     def output_module(self, lang, pkg):
         """write exts_list entry
         """
+        output = None
         if lang == 'R':
-            output = "%s('%s', '%s')," % (self.indent, pkg['name'],
-                                          pkg['version'])
+            output = "%s('%s', '%s')," % (self.indent, pkg['name'], pkg['version'])
         elif lang == 'Python':
             pkg_fmt = self.indent + "('%s', '%s', {\n"
             item_fmt = self.indent + self.indent + "'%s': %s,\n"
-            list_fmt = self.indent + self.indent + "'%s': ['%s'],\n"
             output = pkg_fmt % (pkg['name'], pkg['version'])
             for item in pkg.keys():
                 if item in ['name', 'version', 'action', 'type', 'orig_ver',
@@ -215,7 +215,7 @@ class FrameWork:
                 extension['action'] = 'keep'
 
             if self.name.lower() == name.lower():
-                # speical case for bundles, if "name" is used in exts_list
+                # special case for bundles, if "name" is used in exts_list
                 indx = self.code[self.ptr_head:].find('),') + 2
                 indx += self.ptr_head
                 self.write_chunk(indx)
@@ -246,7 +246,7 @@ class UpdateExts:
         """
         self.verbose = args.verbose
         self.debug = True 
-        self.tree = False
+        self.tree = args.tree
         self.meta = args.meta
         self.search_pkg = args.search_pkg
         self.ext_counter = 0
@@ -257,7 +257,7 @@ class UpdateExts:
         self.indent = ' ' * self.indent_n
         self.ext_list_len = 1
         self.exts_dep = list()
-        self.checking = list() # pytest -> attrs -> pytest
+        self.checking = list()  # pytest -> attrs -> pytest
         self.depend_exclude = list()
         self.exts_processed = list()
 
@@ -284,10 +284,10 @@ class UpdateExts:
             elif args.rver:
                 self.version = args.rver
             else:
-                print('Languange and version must be specified with ' +
+                print('Language and version must be specified with ' +
                       '[--pyver x.x | --rver x.x | --biocver x.x]')
             self.sea_pkg = {'name': args.search_pkg, 'version': '', 'type': 'orig',
-                       'level': 0, 'meta': {}}
+                            'level': 0, 'meta': {}}
             # move exts from easyconfig into processed list
             if args.easyconfig:
                 for ext in self.exts_orig:
@@ -324,6 +324,7 @@ class UpdateExts:
             if pkg['type'] == 'orig':
                 pkg['action'] = 'duplicate'
                 self.pkg_duplicate += 1
+                self.ext_counter -= 1
                 self.processed(pkg)
                 if self.verbose:
                     self.print_status(pkg)
@@ -332,7 +333,7 @@ class UpdateExts:
 
     def processed(self, pkg):
         """ save Processed packages
-        save a normalize version of packae name to <exts_search> for Python
+        save a normalize version of package name to <exts_search> for Python
         updated July 2018
         """
         pkg['processed'] = True
@@ -353,8 +354,7 @@ class UpdateExts:
                       self.ext_list_len, self.ext_counter))
 
     def print_meta(self, info):
-        """ print meta data from repository
-        this is broken for R
+        """ print meta data from CRAN or Pypi
         :param info: dict
         """
         pass
@@ -364,8 +364,8 @@ class UpdateExts:
         information for a package. This is the heart of the program.
 
         input: pkg{}
-        check that all dependancies are meet for each package.
-        check_package can be called recursivly.
+        check that all dependencies are meet for each package.
+        check_package can be called recursively.
         pkg['type'] is used to track status.
           - 'orig' is also used to track recursion
           - 'dep' package that is added as result of dependancy
@@ -418,7 +418,6 @@ class UpdateExts:
                                'spec': {}, 'meta': {}, 'level': pkg['level']+1}
                     self.check_package(dep_pkg)
         self.processed(pkg)
-        self.ext_counter += 1
         if self.search_pkg:
             output = self.output_module(pkg)
             print(output)
@@ -426,18 +425,19 @@ class UpdateExts:
             self.print_status(pkg)
         if self.meta:
             self.print_meta(pkg['meta'])
+        if pkg['action'] == 'add':
+            self.ext_counter += 1
 
     def updateexts(self):
         """Loop through exts_list and check which packages need to be updated.
         this is an external method for the class
         """
         if self.search_pkg:
-            #pkg = {'name': self.search_pkg, 'version': '', 'type': 'orig',
-            #       'spec': {}, 'level': 0, 'meta': {}}
             self.check_package(self.sea_pkg)
         else:
             self.ext_list_len = len(self.exts_orig)
             for ext in self.exts_orig:
+                self.ext_counter += 1
                 if isinstance(ext, tuple):
                     name = ext[0] % self.interpolate
                     version = ext[1] % self.interpolate
@@ -515,7 +515,7 @@ class UpdateR(UpdateExts):
             return "not found"
         cran_info = resp.json()
         pkg['meta']['info'] = cran_info
-        if self.Meta:
+        if self.meta:
             self.print_meta(cran_info)
         pkg['meta']['version'] = cran_info['Version']
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
@@ -645,8 +645,7 @@ class UpdatePython(UpdateExts):
         verify that package name from EasyConfig
         matches package name from PyPi
         """
-        pkg = {}
-        pkg['name'] = pkg_name
+        pkg = {'name': pkg_name}
         response = self.get_pypi_pkg_data(pkg)
         if response == 'not found':
             return response
@@ -666,13 +665,12 @@ class UpdatePython(UpdateExts):
         example:  (sys_platform=='win32')
         If <extra> is present use ignore_list to validate
         """
-        ignore_list = ['dev','tests', 'docs']
+        ignore_list = ['dev', 'tests', 'docs']
         if requires is None:
             return []
         dists = []
-        sys_platform = 'Linux'
-        python_version = self.python_version
-        platform_python_implementation = 'CPython'
+        #  sys_platform = 'Linux'
+        #  python_version = self.python_version
         extra_re = re.compile("extra\s?==\s?'([\w\-\.\*]+)'")
         platform_re = re.compile('sys_platform\s?==\s?\'(\w+)')
         for req in requires:
@@ -703,19 +701,21 @@ class UpdatePython(UpdateExts):
     def print_meta(self, meta):
         """ Display info from pypi.org
         """
-        tags = ['filename', 'packagetype', 'url', 'python_version',
-                'requires_dist', 'summary', 'requires_python',
-                'classifiers', 'description', 'platform']
-        if self.meta:
-            for key in meta:
-                if key == 'description':
-                    print("%s: %s" % (key, meta[key][1:60]))
-                elif key == 'requires_dist':
-                    print('%s:' % 'requires_dist')
-                    for req in meta[key]:
-                        print("   %s" % req)
-                else:
-                    print("%s: %s" % (key, meta[key]))
+        if self.verbose:
+            tags = meta.keys()
+        else:
+            tags = ['filename', 'packagetype', 'url', 'python_version',
+                    'requires_dist', 'summary', 'requires_python',
+                    'classifiers', 'description', 'platform']
+        for key in tags:
+            if key == 'description':
+                print("%s: %s" % (key, meta[key][1:60]))
+            elif key == 'requires_dist':
+                print('%s:' % 'requires_dist')
+                for req in meta[key]:
+                    print("   %s" % req)
+            else:
+                print("%s: %s" % (key, meta[key]))
 
     def get_package_info(self, pkg):
         """Python version
@@ -768,7 +768,7 @@ class UpdatePython(UpdateExts):
         if status != 'ok':
             status = self.get_pypi_release(pkg, new_version)
         # only set this if not set
-        if 'spec' in pkg and ('source_urls' not in pkg['spec'] and
+        if ('spec' in pkg and 'source_urls' not in pkg['spec'] and
                 new_version != pkg['version']):
             url = "['https://pypi.io/packages/source/%s/%s']"
             pkg['spec']['source_urls'] = url % (pkg['name'][0], pkg['name'])
@@ -780,7 +780,6 @@ class UpdatePython(UpdateExts):
     def output_module(self, pkg):
         pkg_fmt = self.indent + "('%s', '%s', {\n"
         item_fmt = self.indent + self.indent + "'%s': %s,\n"
-        list_fmt = self.indent + self.indent + "'%s': ['%s'],\n"
         if self.tree:
             spaces = self.indent * pkg['level']
             output = '%s%s' % (spaces, pkg['name'])
@@ -796,6 +795,7 @@ class UpdatePython(UpdateExts):
                     output += item_fmt % (item, pkg['spec'][item])
             output += self.indent + "}),"
         return output
+
 
 def help():
     print("usage: easy_update  EasyConfig.eb [flags]")
@@ -821,23 +821,20 @@ def main():
     parser.add_argument(
         '--tree', dest='tree', required=False, action='store_true',
         help='Output depenancy list as tree. Only use with --search')
-    parser.add_argument(
-        '--rver', dest='rver', required=False, action='store',
-        help='Set R version (major.minor) example 3.4')
-    bioc_help = 'Set BioConductor version (major.minor) example 3.6. '
+    parser.add_argument('--rver', dest='rver', required=False, action='store',
+                        help='Set R version (major.minor) example 3.6')
+    bioc_help = 'Set BioConductor version (major.minor) example 3.9. '
     bioc_help += 'Use with --rver'
     parser.add_argument('--biocver', dest='biocver', required=False,
                         action='store', help=bioc_help)
-    parser.add_argument(
-        '--pyver', dest='pyver', required=False, action='store',
-        help='Set Python version [2.7 or 3.6]')
+    parser.add_argument('--pyver', dest='pyver', required=False, action='store',
+                        help='Set Python version [2.7 or 3.6]')
     search_help = 'Search for single package. requires --rver or --pyver'
-    parser.add_argument(
-        '--search', dest='search_pkg', required=False, action='store',
-        help=search_help)
-    parser.add_argument(
-        '--meta', dest='meta', required=False, action='store_true',
-        help='output all meta data keys from Pypi, (default: false)')
+    parser.add_argument('--search', dest='search_pkg', required=False, action='store',
+                        help=search_help)
+    parser.add_argument('--meta', dest='meta', required=False, action='store_true',
+                        help='output select meta data keys from Pypi, if used with ' +
+                             'verbose all metadata is output (default: false)')
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
@@ -880,9 +877,10 @@ def main():
         sys.exit(1)
 
     if args.name == 'R':
-        module = UpdateR(args, eb, dep_eb)
+        UpdateR(args, eb, dep_eb)
     elif args.name == 'Python':
-        module = UpdatePython(args, eb, dep_eb)
+        UpdatePython(args, eb, dep_eb)
+
 
 if __name__ == '__main__':
     main()
