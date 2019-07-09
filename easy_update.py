@@ -16,8 +16,9 @@ is updated for modules in exts_list. Use language specific APIs for resolving
 current version for each package.
 
 Release Notes
-2.0.5 Only one flag for debugging metadata '--meta'. Used with --verbose all
-    Metadata is output from Pypi. Try to fix package counter
+2.0.5 July 8, 2019 Only one flag for debugging metadata '--meta'.
+    Used with --verbose all Metadata is output from Pypi. Try to fix package
+    counter. Why was R Bioconductor broken?
 2.0.4 Python issues, fixed bugs, but still not perfect
 2.0.3 more issues with Pypi
 2.0.2 fixed issue: could not open easyconfig if it was not in the present
@@ -53,7 +54,7 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.4'
+__version__ = '2.0.5'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'June 18, 2019'
 
