@@ -2,7 +2,6 @@
 
 import os
 import sys
-import imp
 import argparse
 import json
 from datetime import date
@@ -10,12 +9,10 @@ import requests
 import xmlrpclib
 from framework import FrameWork
 
-__author__ = "John Dey"
-__version__ = "2.0.2"
-__date__ = "July 9, 2019"
-__email__ = "jfdey@fredhutch.org"
-
-"""2.0.2 use FrameWork class from easyupdate. Create single document from R and Python
+"""Easy_Annotate creates Markdown documentation for R and Python easyconfigs.
+    Document all exts_list packages. 
+    
+    2.0.2 use FrameWork class from easyupdate. Create single document from R and Python
     Packages. Read Dependent module to append exts_list packages, to create a single
     document to describe compound Modules.
    
@@ -23,6 +20,12 @@ __email__ = "jfdey@fredhutch.org"
 
     Versioin 1.x create HTML output
 """
+
+__author__ = "John Dey"
+__version__ = "2.0.2"
+__date__ = "July 9, 2019"
+__email__ = "jfdey@fredhutch.org"
+
 
 class ExtsList(object):
     """ Easy Anotate is a utilty program for documenting EasyBuild easyconfig
@@ -191,8 +194,8 @@ class R(ExtsList):
 
 
 class PythonExts(ExtsList):
-    def __init__(self, file_name, verbose=False):
-        ExtsList.__init__(self, file_name, verbose)
+    def __init__(self, eb, dep_eb, verbose):
+        ExtsList.__init__(self, eb, dep_eb, verbose)
         self.verbose = verbose
         self.pkg_dict = None
 
@@ -246,8 +249,8 @@ def main():
                 dep_lang = x[0]
                 if dep_lang == lang_name:
                     dep_filename = '{}/{}-{}-{}-{}.eb'.format(path, x[0], x[1],
-                                                  eb.toolchain['name'],
-                                                  eb.toolchain['version'])
+                                                              eb.toolchain['name'],
+                                                              eb.toolchain['version'])
                     print("reading dependencies: %s" % dep_filename)
                     dep_eb = FrameWork(args, dep_filename, False)
     if lang_name == 'R':
@@ -256,6 +259,7 @@ def main():
         PythonExts(eb, dep_eb, args.verbose)
     else:
         print('easyanotate does not support module: {}'.format(eb_name))
+
 
 if __name__ == '__main__':
     main()

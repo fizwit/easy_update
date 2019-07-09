@@ -16,6 +16,7 @@ is updated for modules in exts_list. Use language specific APIs for resolving
 current version for each package.
 
 Release Notes
+2.0.6 July 9, 2019 easy_anotate read dependinces, add framework, pep8 issues
 2.0.5 July 8, 2019 Only one flag for debugging metadata '--meta'.
     Used with --verbose all Metadata is output from Pypi. Try to fix package
     counter. Why was R Bioconductor broken?
@@ -54,9 +55,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.5'
+__version__ = '2.0.6'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'June 18, 2019'
+__date__ = 'July 8, 2019'
 
 
 class FrameWork:
