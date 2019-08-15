@@ -7,14 +7,25 @@ import argparse
 import imp
 import requests
 
-""" 1.0.0 July 8, 2019
+""" 1.0.1 Aug, 15, 2019
+    fix parse_dependencies
+    For the case of reading Python dependancies, conver the
+    case of 'Biopython-1.74-foss-2016b-Python-3.7.4'
+    Search dependcies for versionsuffix == '-Python-%(pyver)s'
+    add dep_exts are exts_list from dependent packages
+
+    - remove the variable dep_eb
+    - All to resolve dependancie in the FrameWork, FrameWork only
+      needs a single argument. It had three.
+
+    1.0.0 July 8, 2019
     framework.py becomes seperate package. Share code
     between easy_update and easy_annotate
 
-    Read exts_list for R and Python listed in dependencies. 
+    Read exts_list for R and Python listed in dependencies.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'July 9, 2019'
 
@@ -25,7 +36,7 @@ class FrameWork:
     methods:
         print_update()
     """
-    def __init__(self, args, filename, primary):
+    def __init__(self, args):
         self.debug = False
         self.code = None
         self.pyver = None
@@ -35,13 +46,26 @@ class FrameWork:
         self.ptr_head = 0
         self.modulename = None
 
+        print('this is this the path: {}'.format(args.easyconfig))
+        full_path = os.path.dirname(args.easyconfig)
+        (head, tail) = os.path.split(full_path)
+        while tail:
+            if 'easyconfig' in tail:
+                self.base_path = os.path.join(head, tail)
+                break
+            (head, tail) = os.path.split(head)
+
         # update EasyConfig exts_list or check single package
         if args.easyconfig:
-            eb = self.parse_eb(filename, primary=True)
+            eb = self.parse_eb(args.easyconfig, primary=True)
             self.exts_list = eb.exts_list
             self.toolchain = eb.toolchain
             self.name = eb.name
             self.version = eb.version
+            if eb.name == 'Python':
+                self.pyver = eb.version
+            else:
+                self.pyver = None
             self.modulename = eb.name + '-' + eb.version
             self.modulename += '-' + eb.toolchain['name']
             self.modulename += '-' + eb.toolchain['version']
@@ -49,7 +73,7 @@ class FrameWork:
                                 'version': eb.version,
                                 'pyver': None,
                                 'rver': None}
-            self.parse_dependencies(eb)
+            self.dep_exts = self.parse_dependencies(eb, self.name)
             # exts_defaultclass = 'PythonPackage' | 'RPackage' | 'PerlModule'
             try:
                 self.versionsuffix = eb.versionsuffix
@@ -70,9 +94,8 @@ class FrameWork:
                     print('biocver: %s' % self.biocver)
             except (AttributeError, NameError):
                 pass
-            if primary:
-                self.check_eb_package_name(args.easyconfig)
-                self.out = open(args.easyconfig[:-3] + ".update", 'w')
+            self.check_eb_package_name(args.easyconfig)
+            self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
         """ interpret EasyConfig file with 'exec'.  Interperting fails if
@@ -102,16 +125,61 @@ class FrameWork:
             self.code = code
         return eb
 
-    def parse_dependencies(self, eb):
+    def build_dep_filename(self, eb, dep, pyver=None):
+        """build a filename from a dependencie objecwt"""
+        dep_filename = '{}-{}-{}-{}'.format(dep[0], dep[1],
+                                                              eb.toolchain['name'],
+                                                              eb.toolchain['version'])
+        if pyver and len(dep) > 2:
+            versionsuffix = dep[2] % {'pyver': pyver}
+            dep_filename += '{}'.format(versionsuffix)
+        dep_filename += '.eb'
+        sys.stderr.write(" - dependency: {}\n".format(dep_filename))
+        return dep_filename
+
+    def find_easyconfig(self, easyconfig):
+        """ search base_path for easyconfig filename """
+        found = None
+        for r,d,f in os.walk(self.base_path):
+            for filename in f:
+                 if filename == easyconfig:
+                      found = os.path.join(r,filename)
+                      break
+        return found
+
+    def parse_dependencies(self, eb, lang):
         try:
             dependencies = eb.dependencies
         except NameError:
-            return
+            return None
+        dep_exts = []
         for dep in dependencies:
-            if dep[0] == 'Python':
-                self.interpolate['pyver'] = dep[1]
-            if dep[0] == 'R':
-                self.interpolate['rver'] = dep[1]
+            easyconfig = None
+            if dep[0] in ['R', 'Python']:
+                if lang == dep[0]:
+                   dep_filename = self.build_dep_filename(eb, dep)
+            if lang == 'Python' and len(dep) > 2 and dep[2] == '-Python-%(pyver)s':
+                """ this is a PythonBundle """
+                dep_filename = self.build_dep_filename(eb, dep, self.pyver)
+                easyconfig = self.find_easyconfig(dep_filename)
+            if easyconfig:
+                eb = self.parse_eb(easyconfig, False)
+                try:
+                    dep_exts.extend(eb.exts_list)
+                except (AttributeError, NameError):
+                    dep_exts.extend([dep])
+        return dep_exts
+
+    def parse_python_deps(self, eb):
+        """ Python EasyConfigs can have other Python packages in the
+        dependancy field. check 3rd element for -Python-%(pyver)s"
+        """
+        try:
+            dependencies = eb.dependencies
+        except NameError:
+            return None
+        for dep in eb.dependencies:
+            pass
 
     def check_eb_package_name(self, filename):
         """" check that easybuild filename matches package name

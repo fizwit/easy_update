@@ -10,12 +10,12 @@ import xmlrpclib
 from framework import FrameWork
 
 """Easy_Annotate creates Markdown documentation for R and Python easyconfigs.
-    Document all exts_list packages. 
-    
+    Document all exts_list packages.
+
     2.0.2 use FrameWork class from easyupdate. Create single document from R and Python
     Packages. Read Dependent module to append exts_list packages, to create a single
     document to describe compound Modules.
-   
+
     Version 2 create Markdown output
 
     Versioin 1.x create HTML output
@@ -34,16 +34,14 @@ class ExtsList(object):
     html documentation of extension list.
     """
 
-    def __init__(self, eb, dep, verbose):
-        self.debug = False 
+    def __init__(self, eb, verbose):
+        self.debug = False
         self.verbose = verbose
         self.pkg_count = 0
 
-        if dep:
-            self.extension = dep.exts_list
-            self.extension.extend(eb.exts_list)
-        else:
-            self.extension = dep.exts_list
+        if eb.dep_exts:
+            self.extension = eb.dep_exts
+        self.extension.extend(eb.exts_list)
         self.biocver = None
         self.toolchain = eb.toolchain
         self.pkg_name = eb.name + '-' + eb.version + '-'
@@ -71,7 +69,7 @@ class ExtsList(object):
 
     def exts2html(self):
         self.out.write('### Known Issues\n')
-        self.out.write(' * None\n')
+        self.out.write(' * None\n\n')
         self.out.write('### Package List\n')
         pkg_info = {}
         for pkg in self.extension:
@@ -112,7 +110,7 @@ class R(ExtsList):
                       'tools', 'tcltk', 'grid', 'splines'
                       }
 
-    def __init__(self, eb, dep_eb, verbose):
+    def __init__(self, eb, verbose):
         self.debug = False
         self.verbose = verbose
         self.biocver = None
@@ -125,7 +123,7 @@ class R(ExtsList):
         if self.biocver:
             self.read_bioconductor_packages()
             self.bioconductor = True
-        ExtsList.__init__(self, eb, dep_eb, verbose)
+        ExtsList.__init__(self, eb, verbose)
 
     def read_bioconductor_packages(self):
         """ read the Bioconductor package list into bio_data dict
@@ -194,8 +192,8 @@ class R(ExtsList):
 
 
 class PythonExts(ExtsList):
-    def __init__(self, eb, dep_eb, verbose):
-        ExtsList.__init__(self, eb, dep_eb, verbose)
+    def __init__(self, eb, verbose):
+        ExtsList.__init__(self, eb, verbose)
         self.verbose = verbose
         self.pkg_dict = None
 
@@ -234,31 +232,17 @@ def main():
     args = parser.parse_args()
 
     if args.easyconfig:
-        eb_name = os.path.basename(args.easyconfig)
-        path = os.path.dirname(args.easyconfig)
-        eb = FrameWork(args, args.easyconfig, True)
+        eb = FrameWork(args)
     else:
         print("provide a module nameModule with R-, or Python-")
         sys.exit(1)
-    lang_name = eb_name.split('-')[0]
 
-    dep_eb = None
-    if eb and eb.dependencies:
-        for x in eb.dependencies:
-            if x[0] in ['R', 'Python']:
-                dep_lang = x[0]
-                if dep_lang == lang_name:
-                    dep_filename = '{}/{}-{}-{}-{}.eb'.format(path, x[0], x[1],
-                                                              eb.toolchain['name'],
-                                                              eb.toolchain['version'])
-                    print("reading dependencies: %s" % dep_filename)
-                    dep_eb = FrameWork(args, dep_filename, False)
-    if lang_name == 'R':
-        R(eb, dep_eb, args.verbose)
-    elif lang_name == 'Python':
-        PythonExts(eb, dep_eb, args.verbose)
+    if eb.name == 'R':
+        R(eb, args.verbose)
+    elif eb.name == 'Python':
+        PythonExts(eb, args.verbose)
     else:
-        print('easyanotate does not support module: {}'.format(eb_name))
+        print('easyanotate does not know how to process: {}'.format(eb.name))
 
 
 if __name__ == '__main__':

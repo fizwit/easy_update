@@ -78,6 +78,7 @@ class FrameWork:
 
         # update EasyConfig exts_list or check single package
         if args.easyconfig:
+            print('parse: {}'.format(filename))
             eb = self.parse_eb(filename, primary=True)
             self.exts_list = eb.exts_list
             self.toolchain = eb.toolchain
@@ -413,7 +414,8 @@ class UpdateExts:
                 self.pkg_new += 1
 
         if 'requires' in pkg['meta'] and pkg['meta']['requires'] is not None:
-            # sys.stderr.write('%s: %s\n' % (pkg['name'], pkg['meta']['requires']))
+            if self.debug:
+                sys.stderr.write('%s: %s\n' % (pkg['name'], pkg['meta']['requires']))
             for depend in pkg['meta']['requires']:
                 if depend not in self.depend_exclude:
                     dep_pkg = {'name': depend, 'version': 'x', 'type': 'dep',
@@ -603,18 +605,19 @@ class UpdatePython(UpdateExts):
     """
     def __init__(self, args, eb, deps_eb):
         UpdateExts.__init__(self, args, eb, deps_eb)
-        self.debug = True
+        self.debug = True 
         self.pkg_dict = None
         if eb:
             (nums) = eb.version.split('.')
         else:
             (nums) = args.pyver.split('.')
         self.python_version = "%s.%s" % (nums[0], nums[1])
-        self.pymajornum = nums[0]
-        self.pyminor = nums[1]
+        pymajor = int(nums[0])
+        pyminor = int(nums[1])
         # Python >3.3 has additional built in modules
-        if nums[0] == 3 and nums[1] > 3:
-            self.depend_exclude.extends(['argparse', 'asyncio'])
+        if pymajor == 3 and pyminor > 3:
+            self.depend_exclude += ['argparse', 'asyncio', 'typing',
+                        'functools32','enum34', 'future', 'configparser']
         if self.debug and self.search_pkg:
             print('Python Search PyPi: %s' % self.search_pkg)
         self.updateexts()
@@ -623,7 +626,7 @@ class UpdatePython(UpdateExts):
 
     def get_pypi_pkg_data(self, pkg, version=None):
         """
-        return meta data from PyPi.org
+        return all meta data from PyPi.org
         """
         if version:
             req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
@@ -654,6 +657,15 @@ class UpdatePython(UpdateExts):
         else:
             return response['info']['name']
 
+    def python_classifiers(sef, classifiers):
+        """ Inspect <classifiers> object from Pypi.org to determin if
+        OS, and Programming Language are valid.
+
+        Test that <python_version> and <sys_platform> conform.
+        example:  (sys_platform=='win32')
+        If <extra> is present use ignore_list to validate
+        """
+
     def parse_pypi_requires(self, requires):
         """pypi requires_dist PEP - 345
         https://dustingram.com/articles/2018/03/05/why-pypi-doesnt-know-dependencies/
@@ -663,16 +675,12 @@ class UpdatePython(UpdateExts):
         Only install the latest version so ignore all version information
         input: 'numpy (>=1.7.1)'  output: 'numpy'
 
-        Test that <python_version> and <sys_platform> conform.
-        example:  (sys_platform=='win32')
-        If <extra> is present use ignore_list to validate
         """
         ignore_list = ['dev', 'tests', 'docs']
         if requires is None:
             return []
         dists = []
         #  sys_platform = 'Linux'
-        #  python_version = self.python_version
         extra_re = re.compile("extra\s?==\s?'([\w\-\.\*]+)'")
         platform_re = re.compile('sys_platform\s?==\s?\'(\w+)')
         for req in requires:
@@ -712,11 +720,11 @@ class UpdatePython(UpdateExts):
         for key in tags:
             if key == 'description':
                 print("%s: %s" % (key, meta[key][1:60]))
-            elif key == 'requires_dist':
+            elif key == 'requires_dist' and meta[key]:
                 print('%s:' % 'requires_dist')
                 for req in meta[key]:
                     print("   %s" % req)
-            else:
+            elif key in meta:
                 print("%s: %s" % (key, meta[key]))
 
     def get_package_info(self, pkg):
