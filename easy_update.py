@@ -6,16 +6,22 @@ import sys
 import argparse
 import imp
 import requests
+from framework import FrameWork
 # from pprint import pprint
 # from pprint import pformat
 
-"""EasyUpdate performs package version updating for EasyBuild
+"""
+EasyUpdate performs package version updating for EasyBuild
 easyconfig files. Automates the the updating of version information for R,
 Python and bundles that extend R and Python. Package version information
 is updated for modules in exts_list. Use language specific APIs for resolving
 current version for each package.
+"""
 
-Release Notes
+""" Release Notes
+2.0.7 Aug 15, 2019 framework is a module, remove from this file. Update
+    to use new features of Framwork which were added to support easy_annotate.
+
 2.0.6 July 9, 2019 easy_anotate read dependinces, add framework, pep8 issues
 2.0.5 July 8, 2019 Only one flag for debugging metadata '--meta'.
     Used with --verbose all Metadata is output from Pypi. Try to fix package
@@ -55,190 +61,9 @@ Release Notes
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.6'
+__version__ = '2.0.7'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'July 8, 2019'
-
-
-class FrameWork:
-    """provide access to EasyBuild Config file variables
-    name, version, toolchain, eb.exts_list, dependencies, modulename, biocver,
-    methods:
-        print_update()
-    """
-    def __init__(self, args, filename, primary):
-        self.debug = False
-        self.code = None
-        self.pyver = None
-        self.search_pkg = None
-        self.indent_n = 4
-        self.indent = ' ' * self.indent_n
-        self.ptr_head = 0
-        self.modulename = None
-
-        # update EasyConfig exts_list or check single package
-        if args.easyconfig:
-            print('parse: {}'.format(filename))
-            eb = self.parse_eb(filename, primary=True)
-            self.exts_list = eb.exts_list
-            self.toolchain = eb.toolchain
-            self.name = eb.name
-            self.version = eb.version
-            self.modulename = eb.name + '-' + eb.version
-            self.modulename += '-' + eb.toolchain['name']
-            self.modulename += '-' + eb.toolchain['version']
-            self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
-                                'version': eb.version,
-                                'pyver': None,
-                                'rver': None}
-            self.parse_dependencies(eb)
-            # exts_defaultclass = 'PythonPackage' | 'RPackage' | 'PerlModule'
-            try:
-                self.versionsuffix = eb.versionsuffix
-                self.modulename += eb.versionsuffix
-            except (AttributeError, NameError):
-                self.versionsuffix = None
-            self.modulename = self.modulename % self.interpolate
-            if self.debug:
-                sys.stderr.write('debug - modulename: %s\n' % self.modulename)
-                sys.stderr.write('debug -       file: %s\n' % filename[:-3])
-            try:
-                self.dependencies = eb.dependencies
-            except (AttributeError, NameError):
-                self.dependencies = None
-            try:
-                self.biocver = eb.biocver
-                if self.debug:
-                    print('biocver: %s' % self.biocver)
-            except (AttributeError, NameError):
-                pass
-            if primary:
-                self.check_eb_package_name(args.easyconfig)
-                self.out = open(args.easyconfig[:-3] + ".update", 'w')
-
-    def parse_eb(self, file_name, primary):
-        """ interpret EasyConfig file with 'exec'.  Interperting fails if
-        constants that are not defined within the EasyConfig file.  Add
-        undefined constants to <header>.
-        """
-        header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
-        header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
-        header += 'SOURCELOWER_TAR_GZ = "%(namelower)s-%(version)s.tar.gz"\n'
-        header += ('PYPI_SOURCE = "https://pypi.python.org/packages/' +
-                   'source/%(nameletter)s/%(name)s"\n')
-        header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
-                   '%(namelower)s"\n')
-        eb = imp.new_module("EasyConfig")
-        try:
-            with open(file_name, "r") as f:
-                code = f.read()
-        except IOError as err:
-            print("opening %s: %s" % (file_name, err))
-            sys.exit(1)
-        try:
-            exec (header + code, eb.__dict__)
-        except Exception as err:
-            print("interperting EasyConfig error: %s" % err)
-            sys.exit(1)
-        if primary:     # save original text of source code
-            self.code = code
-        return eb
-
-    def parse_dependencies(self, eb):
-        try:
-            dependencies = eb.dependencies
-        except NameError:
-            return
-        for dep in dependencies:
-            if dep[0] == 'Python':
-                self.interpolate['pyver'] = dep[1]
-            if dep[0] == 'R':
-                self.interpolate['rver'] = dep[1]
-
-    def check_eb_package_name(self, filename):
-        """" check that easybuild filename matches package name
-        easyconfig is original filename
-        """
-        eb_name = os.path.basename(filename)[:-3]
-        if eb_name != self.modulename:
-            sys.stderr.write("Warning: file name does not match easybuild " +
-                             "module name\n"),
-        if eb_name != self.modulename or self.debug:
-            sys.stderr.write("   file name: %s\n module name: %s\n" % (
-                eb_name, self.modulename))
-
-    def write_chunk(self, indx):
-        self.out.write(self.code[self.ptr_head:indx])
-        self.ptr_head = indx
-
-    def rewrite_extension(self, pkg):
-        name = pkg['name']
-        name_indx = self.code[self.ptr_head:].find(name)
-        name_indx += self.ptr_head + len(name) + 1
-        indx = self.code[name_indx:].find("'") + name_indx + 1
-        self.write_chunk(indx)
-        self.out.write("%s'" % pkg['version'])
-        self.ptr_head = self.code[self.ptr_head:].find("'") + self.ptr_head + 1
-        indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
-        self.write_chunk(indx)
-
-    def output_module(self, lang, pkg):
-        """write exts_list entry
-        """
-        output = None
-        if lang == 'R':
-            output = "%s('%s', '%s')," % (self.indent, pkg['name'], pkg['version'])
-        elif lang == 'Python':
-            pkg_fmt = self.indent + "('%s', '%s', {\n"
-            item_fmt = self.indent + self.indent + "'%s': %s,\n"
-            output = pkg_fmt % (pkg['name'], pkg['version'])
-            for item in pkg.keys():
-                if item in ['name', 'version', 'action', 'type', 'orig_ver',
-                            'processed', 'meta', 'level', 'spec']:
-                    continue
-                output += item_fmt % (item, pkg[item])
-            for item in pkg['spec'].keys():
-                output += item_fmt % (item, pkg['spec'][item])
-            output += self.indent + "}),"
-        return output
-
-    def print_update(self, lang, exts_list):
-        """ this needs to be re-written in a Pythonesque manor
-        if module name matches extension name then skip
-        """
-        indx = self.code.find('exts_list')
-        indx += self.code[indx:].find('[')
-        indx += self.code[indx:].find('\n') + 1
-        self.write_chunk(indx)
-
-        for extension in exts_list:
-            name = extension['name']
-            if 'action' not in extension:
-                sys.stderr.write('No action: %s\n' % name)
-                extension['action'] = 'keep'
-
-            if self.name.lower() == name.lower():
-                # special case for bundles, if "name" is used in exts_list
-                indx = self.code[self.ptr_head:].find('),') + 2
-                indx += self.ptr_head
-                self.write_chunk(indx)
-            elif extension['type'] == 'base':  # base library with no version
-                indx = self.code[self.ptr_head:].find(name)
-                indx += self.ptr_head + len(name) + 2
-                self.write_chunk(indx)
-            elif extension['action'] in ['keep', 'update']:
-                self.rewrite_extension(extension)
-            elif extension['action'] == 'duplicate':
-                print('Duplicate: %s' % name)
-                name_indx = self.code[self.ptr_head:].find(name)
-                name_indx += self.ptr_head + len(name)
-                indx = self.code[name_indx:].find('),') + name_indx + 3
-                self.ptr_head = indx
-                continue
-            elif extension['action'] in ['add', 'dep']:
-                output = self.output_module(lang, extension)
-                self.out.write("%s\n" % output)
-        self.out.write(self.code[self.ptr_head:])
+__date__ = 'Aug 15, 2019'
 
 
 class UpdateExts:
@@ -378,6 +203,7 @@ class UpdateExts:
           - 'keep'; no update required
           - 'update'; version change
           - 'duplicate' package appears twice
+          - 'remove' not compatible, wrong OS, not supported version
         """
         if self.debug:
             sys.stderr.write('check_package: %s\n' % pkg['name'])
@@ -390,10 +216,17 @@ class UpdateExts:
                 pkg['action'] = 'keep'
                 self.processed(pkg)
                 return
-            else:
-                msg = " Warning: %s is dependency, but can't be found!"
-                print(msg % pkg['name'])
+            elif pkg['type'] == 'dep':
+                msg = " Warning: {} is dependency, but can't be found!"
+                print(msg.format(pkg['name']))
                 return
+        if status == 'remove':
+            msg = " removing {} " 
+            pkg['action'] = 'remove'
+            self.processed(pkg)
+            print(msg.format(pkg['name']))
+            return
+
         if 'version' in pkg['meta']:
             version = pkg['meta']['version']
         else:
@@ -627,6 +460,13 @@ class UpdatePython(UpdateExts):
     def get_pypi_pkg_data(self, pkg, version=None):
         """
         return all meta data from PyPi.org
+        ['info', 'last_serial', 'urls', 'releases']
+        ['releases']['x.x']['digests']['sha256']
+        ['info'][['maintainer', 'docs_url', 'requires_python', 'maintainer_email', 'keywords', 
+                  'package_url', 'author', 'author_email', 'download_url', 'project_urls', 'platform',
+                  'version', 'description', 'release_url', 'description_content_type', 'downloads',
+                  'requires_dist', 'project_url', 'classifiers', 'bugtrack_url', 'name', 'license',
+                  'summary', 'home_page']
         """
         if version:
             req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
@@ -667,7 +507,8 @@ class UpdatePython(UpdateExts):
         """
 
     def parse_pypi_requires(self, requires):
-        """pypi requires_dist PEP - 345
+        """pypi requires_dist PEP - 345  v1.2
+           PEP 566 v2.1
         https://dustingram.com/articles/2018/03/05/why-pypi-doesnt-know-dependencies/
         The project name must be as specified at pypi.org.
         requires_dist: <name> <version>[; Environment Markers]
@@ -758,12 +599,12 @@ class UpdatePython(UpdateExts):
     def get_pypi_info(self, pkg):
         """get version information from pypi.  If <pkg_name> is not processed
         seach pypi. pkg_name is now case sensitive and must match
-        info['digests']['sha256'], 'summary', 'url', 'filename', 'home_page'
+
         """
+        status = 'not found'
         project = self.get_pypi_pkg_data(pkg)
         if project == 'not found':
-            return 'not found'
-        status = 'not found'
+            return status 
         pkg['meta'].update(project['info'])
         new_version = pkg['meta']['version']
         requires = project['info']['requires_dist']
@@ -852,36 +693,24 @@ def main():
     dep_eb = None
     eb = None
     if args.easyconfig:
-        eb_name = os.path.basename(args.easyconfig)
-        eb = FrameWork(args, args.easyconfig, True)
+        eb = FrameWork(args)
+        args.name = eb.name
         if eb.name == 'R':
             args.rver = eb.version 
             args.biocver = eb.biocver
         if eb.name == 'Python':
             args.pyver = eb.version
-    else:
-        eb_name = ''
+    if args.search_pkg:
+        if args.rver:
+            args.name = 'R'
+        elif args.pyver:
+            args.name = 'Python'
+
     if (not args.search_pkg) and (not args.easyconfig):
         print('If no EasyConfig is given, a module name must be ' +
               'specified with --search pkg_name')
         sys.exit()
 
-    if args.rver or eb_name[:3] == 'R-3':
-        args.name = 'R'
-    elif args.pyver or eb_name[:7] == 'Python-':
-        args.name = 'Python'
-    if eb and eb.dependencies:
-        for x in eb.dependencies:
-            if x[0] == 'R' or x[0] == 'Python':
-                dep_lang = x[0]
-                if args.name is None:
-                    args.name = x[0]
-                if dep_lang == args.name:
-                    dep_filename = '%s-%s-%s-%s.eb' % (x[0], x[1],
-                                                       eb.toolchain['name'],
-                                                       eb.toolchain['version'])
-                    print("reading dependencies: %s" % dep_filename)
-                    dep_eb = FrameWork(args, dep_filename, False)
     if not args.name:
         print('Could not determine language [R, Python]')
         sys.exit(1)

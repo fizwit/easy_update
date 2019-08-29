@@ -9,11 +9,23 @@ import requests
 import xmlrpclib
 from framework import FrameWork
 
-"""Easy_Annotate creates Markdown documentation for R and Python easyconfigs.
-    Document all exts_list packages.
+"""
+Easy_Annotate creates Markdown documentation from R and Python easyconfigs.
+All exts_list packages are documented. If possible the annotation will link
+each package to its project page.
+"""
 
-    2.0.2 use FrameWork class from easyupdate. Create single document from R and Python
-    Packages. Read Dependent module to append exts_list packages, to create a single
+""" Release Notes
+    2.0.3 Improve dependent package searches for Python easyconfigs to include
+    PythonPackages. framework has been updated to check the dependenices for any
+    easyconfig with a version suffix of "Python-%(pyver)s". If found locate the
+    easyconfig and add the exts_list to dependend packages. Following depenedencies
+    will allow a more acurate package listing with hierarchical package structure. 
+    Example: Python 3.7.4 -fh1 -> Python 3.7.4 -> pytest, matplotlib ... etc.
+
+    2.0.2 use FrameWork class from easyupdate. Create single document from R and
+    Python Packages. Read Dependent module to append exts_list packages, to
+    create a single
     document to describe compound Modules.
 
     Version 2 create Markdown output
@@ -22,8 +34,8 @@ from framework import FrameWork
 """
 
 __author__ = "John Dey"
-__version__ = "2.0.2"
-__date__ = "July 9, 2019"
+__version__ = "2.0.3"
+__date__ = "Aug 15, 2019"
 __email__ = "jfdey@fredhutch.org"
 
 
@@ -55,7 +67,7 @@ class ExtsList(object):
 
         self.out = open(self.pkg_name + '.md', 'w')
         self.html_header()
-        self.exts2html()
+        self.exts2md()
 
     def html_header(self):
         """write html head block
@@ -67,7 +79,8 @@ class ExtsList(object):
         block += 'date: %s\n---\n\n' % date_string
         self.out.write(block)
 
-    def exts2html(self):
+    def exts2md(self):
+        """ write the output file in Markdown format"""
         self.out.write('### Known Issues\n')
         self.out.write(' * None\n\n')
         self.out.write('### Package List\n')
@@ -236,7 +249,6 @@ def main():
     else:
         print("provide a module nameModule with R-, or Python-")
         sys.exit(1)
-
     if eb.name == 'R':
         R(eb, args.verbose)
     elif eb.name == 'Python':

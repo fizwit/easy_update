@@ -46,7 +46,6 @@ class FrameWork:
         self.ptr_head = 0
         self.modulename = None
 
-        print('this is this the path: {}'.format(args.easyconfig))
         full_path = os.path.dirname(args.easyconfig)
         (head, tail) = os.path.split(full_path)
         while tail:
@@ -90,8 +89,6 @@ class FrameWork:
                 self.dependencies = None
             try:
                 self.biocver = eb.biocver
-                if self.debug:
-                    print('biocver: %s' % self.biocver)
             except (AttributeError, NameError):
                 pass
             self.check_eb_package_name(args.easyconfig)
@@ -128,8 +125,8 @@ class FrameWork:
     def build_dep_filename(self, eb, dep, pyver=None):
         """build a filename from a dependencie objecwt"""
         dep_filename = '{}-{}-{}-{}'.format(dep[0], dep[1],
-                                                              eb.toolchain['name'],
-                                                              eb.toolchain['version'])
+                                            eb.toolchain['name'],
+                                            eb.toolchain['version'])
         if pyver and len(dep) > 2:
             versionsuffix = dep[2] % {'pyver': pyver}
             dep_filename += '{}'.format(versionsuffix)
@@ -148,26 +145,32 @@ class FrameWork:
         return found
 
     def parse_dependencies(self, eb, lang):
+        """ inspect dependencies for R and Python easyconfigs,
+        if found add the exts_list to the list of dependent
+        exts  <dep_exts>
+        """
         try:
             dependencies = eb.dependencies
         except NameError:
             return None
         dep_exts = []
         for dep in dependencies:
-            easyconfig = None
+            dep_filename = None
             if dep[0] in ['R', 'Python']:
                 if lang == dep[0]:
                    dep_filename = self.build_dep_filename(eb, dep)
             if lang == 'Python' and len(dep) > 2 and dep[2] == '-Python-%(pyver)s':
                 """ this is a PythonBundle """
+                # dep_exts.extend([(dep[0], dep[1])]) # Explictly add the module
                 dep_filename = self.build_dep_filename(eb, dep, self.pyver)
+            if dep_filename:
                 easyconfig = self.find_easyconfig(dep_filename)
-            if easyconfig:
-                eb = self.parse_eb(easyconfig, False)
-                try:
-                    dep_exts.extend(eb.exts_list)
-                except (AttributeError, NameError):
-                    dep_exts.extend([dep])
+                if easyconfig:
+                    eb = self.parse_eb(str(easyconfig), False)
+                    try:
+                        dep_exts.extend(eb.exts_list)
+                    except (AttributeError, NameError):
+                        dep_exts.extend([dep])
         return dep_exts
 
     def parse_python_deps(self, eb):
