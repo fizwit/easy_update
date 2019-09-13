@@ -52,6 +52,12 @@ Search requires the command line arguments; --pyver or --rver and --biocver to d
 
 * **--rver, --biocver** Only use in conjunction with search.  Specify only the major minor version numbers
 
+### Python Notes
+Making sense of Pypi metadata can be problematic. 
+https://dustingram.com/articles/2018/03/05/why-pypi-doesnt-know-dependencies/
+Easy_Update processes info mation from Pypi.org. Most of the packing tools are designed
+for read setup.py files. The format for Requires_dist is speicified in PEP566
+
 ### Note
 Easy Update makes many asumptions about the format of the easyconfig file. If
 only and update is being made the original text is preserved and only the
