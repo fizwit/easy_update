@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+1#!/usr/bin/env python
 
 import re
 import os
@@ -251,7 +251,7 @@ class UpdatePython(UpdateExts):
         pyminor = int(nums[1])
         # Python >3.3 has additional built in modules
         if pymajor == 3 and pyminor > 3:
-            self.depend_exclude += ['argparse', 'asyncio', 'typing',
+            self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
                                     'functools32', 'enum34', 'future', 'configparser']
         if self.search_pkg:
             self.check_package(self.sea_pkg) 
