@@ -1,4 +1,4 @@
-1#!/usr/bin/env python
+#!/usr/bin/env python
 
 import re
 import os
@@ -21,7 +21,7 @@ current version for each package.
 """
 
 """ Release Notes
-2.0.8.1 Sep 18, 2019 Bug fix - output_module was broken when framework was 
+2.0.8.1 Sep 18, 2019 Bug fix - output_module was broken when framework was
     seperated from updateexts
 
 2.0.8 Sep 13, 2019 refactor pypi_requires_dist. Use the Marker tool
