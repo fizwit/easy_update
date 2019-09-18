@@ -72,10 +72,12 @@ class UpdateExts:
     def __init__(self, args, eb, dep_eb):
         """
         """
+        self.eb = eb
         self.verbose = args.verbose
         self.debug = False 
         self.meta = args.meta
         self.search_pkg = args.search_pkg
+        self.lang = args.lang
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
@@ -102,7 +104,6 @@ class UpdateExts:
             self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                                 'version': eb.version}
         if self.search_pkg:
-            self.name = args.name
             self.search_pkg = args.search_pkg
             if args.biocver:
                 self.biocver = args.biocver
