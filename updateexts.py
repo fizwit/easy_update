@@ -127,7 +127,8 @@ class UpdateExts:
                         pkg = {'name': name, 'version': version}
                         self.processed(pkg)
                     else:
-                        self.processed({'name': ext, 'from': 'base'}) 
+                        self.processed({'name': ext, 'from': 'base'})
+        print("exts_dep size: {}".format(len(self.exts_dep)))
 
     def is_processed(self, pkg):
         """ check if package has been previously processed
