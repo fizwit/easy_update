@@ -69,15 +69,13 @@ __date__ = 'Aug 15, 2019'
 class UpdateExts:
     """
     """
-    def __init__(self, args, eb, dep_eb):
+    def __init__(self, args, eb):
         """
         """
-        self.eb = eb
         self.verbose = args.verbose
         self.debug = False 
         self.meta = args.meta
         self.search_pkg = args.search_pkg
-        self.lang = args.lang
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
@@ -85,20 +83,20 @@ class UpdateExts:
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ext_list_len = 1
-        self.exts_dep = list()
+        self.dep_exts = list()
         self.checking = list()  # pytest -> attrs -> pytest
         self.depend_exclude = list()
         self.exts_processed = list()
 
-        if dep_eb:
-            for exten in dep_eb.exts_list:
+        if eb.dep_exts:
+            for exten in eb.dep_exts:
                 if isinstance(exten, tuple):
                     if len(exten) == 3 and 'modulename' in exten[2]:
-                        self.exts_dep.append(exten[2]['modulename'])
+                        self.dep_exts.append(exten[2]['modulename'])
                     else:
-                        self.exts_dep.append(exten[0])
+                        self.dep_exts.append(exten[0])
                 else:
-                    self.exts_dep.append(exten)
+                    self.dep_exts.append(exten)
         if args.easyconfig:
             self.exts_orig = eb.exts_list
             self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
@@ -129,7 +127,6 @@ class UpdateExts:
                         self.processed(pkg)
                     else:
                         self.processed({'name': ext, 'from': 'base'})
-        print("exts_dep size: {}".format(len(self.exts_dep)))
 
     def is_processed(self, pkg):
         """ check if package has been previously processed
@@ -139,7 +136,7 @@ class UpdateExts:
         """
         name = pkg['name']
         found = False
-        if name in self.exts_dep:
+        if name in self.dep_exts:
             found = True
         elif name in self.checking:
             found = True

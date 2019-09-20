@@ -45,6 +45,7 @@ class FrameWork:
         self.indent = ' ' * self.indent_n
         self.ptr_head = 0
         self.modulename = None
+        self.dep_exts = None
 
         full_path = os.path.dirname(args.easyconfig)
         (head, tail) = os.path.split(full_path)

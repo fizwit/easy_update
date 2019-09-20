@@ -21,6 +21,9 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.2 Sept 20, 2019 - more bug fixes for --search.  Fixed dependency issues
+    when checking agaist easyconfigs with the search feature.
+    
 2.0.8.1 Sep 18, 2019 Bug fix - output_module was broken when framework was
     seperated from updateexts
 
@@ -90,7 +93,7 @@ current version for each package.
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.1'
+__version__ = '2.0.8.2'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'Sep 13, 2019'
 
@@ -98,8 +101,8 @@ __date__ = 'Sep 13, 2019'
 class UpdateR(UpdateExts):
     """extend UpdateExts class to update package names from CRAN and BioCondutor
     """
-    def __init__(self, args, eb, deps_eb):
-        UpdateExts.__init__(self, args, eb, deps_eb)
+    def __init__(self, args, eb):
+        UpdateExts.__init__(self, args, eb)
         self.debug = False
         self.bioc_data = {}
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
@@ -237,8 +240,8 @@ class UpdatePython(UpdateExts):
        - pypi projects names do not always match module names and or file names
          project: liac-arff, module: arff,  file name: liac_arff.zip
     """
-    def __init__(self, args, eb, deps_eb):
-        UpdateExts.__init__(self, args, eb, deps_eb)
+    def __init__(self, args, eb):
+        UpdateExts.__init__(self, args, eb)
         self.debug = False 
         self.pkg_dict = None
         self.not_found = 'not found'
@@ -398,7 +401,7 @@ class UpdatePython(UpdateExts):
             sys.exit(0)
         return status
 
-    def output_module(pkg):
+    def output_module(self, pkg):
         """Python version
         this method is used with --search, otherwise, framework is used
         """
@@ -452,7 +455,6 @@ def main():
     args = parser.parse_args()
 
     args.lang = None
-    dep_eb = None
     eb = None
     if args.easyconfig:
         eb = FrameWork(args)
@@ -478,9 +480,9 @@ def main():
         sys.exit(1)
 
     if args.lang == 'R':
-        UpdateR(args, eb, dep_eb)
+        UpdateR(args, eb)
     elif args.lang == 'Python':
-        UpdatePython(args, eb, dep_eb)
+        UpdatePython(args, eb)
 
 
 if __name__ == '__main__':
