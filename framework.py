@@ -60,6 +60,7 @@ class FrameWork:
             self.exts_list = eb.exts_list
             self.toolchain = eb.toolchain
             self.name = eb.name
+            self.lang = str(eb.name)
             self.version = eb.version
             if eb.name == 'Python':
                 self.pyver = eb.version
@@ -72,7 +73,7 @@ class FrameWork:
                                 'version': eb.version,
                                 'pyver': None,
                                 'rver': None}
-            self.dep_exts = self.parse_dependencies(eb, self.name)
+            self.dep_exts = self.parse_dependencies(eb, self.lang)
             # exts_defaultclass = 'PythonPackage' | 'RPackage' | 'PerlModule'
             try:
                 self.versionsuffix = eb.versionsuffix
@@ -253,7 +254,7 @@ class FrameWork:
                 sys.stderr.write('No action: %s\n' % name)
                 extension['action'] = 'keep'
 
-            if self.name.lower() == name.lower():
+            if lang.lower() == lang:
                 # special case for bundles, if "name" is used in exts_list
                 indx = self.code[self.ptr_head:].find('),') + 2
                 indx += self.ptr_head

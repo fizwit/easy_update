@@ -21,6 +21,9 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.1 Sep 18, 2019 Bug fix - output_module was broken when framework was
+    seperated from updateexts
+
 2.0.8 Sep 13, 2019 refactor pypi_requires_dist. Use the Marker tool
     pkg_resources to check Python dependencies.
     keep track of package dependencies and display from which dist a package was requested
@@ -87,7 +90,7 @@ current version for each package.
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8'
+__version__ = '2.0.8.1'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'Sep 13, 2019'
 
@@ -218,6 +221,9 @@ class UpdateR(UpdateExts):
             else:
                 print("%s: %s" % (tag, meta[tag]))
 
+    def output_module(self, pkg):
+       return "%s('%s', '%s')," % (self.indent, pkg['name'], pkg['version'])
+
     def is_not_used(self):
         pass
 
@@ -245,7 +251,7 @@ class UpdatePython(UpdateExts):
         pyminor = int(nums[1])
         # Python >3.3 has additional built in modules
         if pymajor == 3 and pyminor > 3:
-            self.depend_exclude += ['argparse', 'asyncio', 'typing',
+            self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
                                     'functools32', 'enum34', 'future', 'configparser']
         if self.search_pkg:
             self.check_package(self.sea_pkg) 
@@ -392,6 +398,20 @@ class UpdatePython(UpdateExts):
             sys.exit(0)
         return status
 
+    def output_module(pkg):
+        """Python version
+        this method is used with --search, otherwise, framework is used
+        """
+        pkg_fmt = self.indent + "('{}', '{}', {{\n"
+        item_fmt = self.indent + self.indent + "'%s': %s,\n"
+        if 'spec' in pkg:
+            output = pkg_fmt.format(pkg['name'], pkg['version'])
+            for item in pkg['spec'].keys():
+                output += item_fmt % (item, pkg['spec'][item])
+            output += self.indent + "}),"
+        else:
+            output = "('{}', '{}),".format(pkg['name'], pkg['version'])
+        return output
 
 def help():
     print("usage: easy_update  EasyConfig.eb [flags]")
@@ -431,12 +451,12 @@ def main():
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
-    args.name = None
+    args.lang = None
     dep_eb = None
     eb = None
     if args.easyconfig:
         eb = FrameWork(args)
-        args.name = eb.name
+        args.lang = eb.name
         if eb.name == 'R':
             args.rver = eb.version 
             args.biocver = eb.biocver
@@ -444,22 +464,22 @@ def main():
             args.pyver = eb.version
     if args.search_pkg:
         if args.rver:
-            args.name = 'R'
+            args.lang = 'R'
         elif args.pyver:
-            args.name = 'Python'
+            args.lang = 'Python'
 
     if (not args.search_pkg) and (not args.easyconfig):
         print('If no EasyConfig is given, a module name must be ' +
               'specified with --search pkg_name')
         sys.exit()
 
-    if not args.name:
+    if not args.lang:
         print('Could not determine language [R, Python]')
         sys.exit(1)
 
-    if args.name == 'R':
+    if args.lang == 'R':
         UpdateR(args, eb, dep_eb)
-    elif args.name == 'Python':
+    elif args.lang == 'Python':
         UpdatePython(args, eb, dep_eb)
 
 
