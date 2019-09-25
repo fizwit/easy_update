@@ -88,7 +88,7 @@ class UpdateExts:
         self.depend_exclude = list()
         self.exts_processed = list()
 
-        if eb.dep_exts:
+        if eb and eb.dep_exts:
             for exten in eb.dep_exts:
                 if isinstance(exten, tuple):
                     if len(exten) == 3 and 'modulename' in exten[2]:

@@ -21,6 +21,11 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.3 Sept 25, 2019 Bug Fix: File "updateexts.py", line 91, in __init__ 
+    if eb.dep_exts:
+    AttributeError: 'NoneType' object has no attribute 'dep_exts'
+AttributeError: 'NoneType' object has no attribute 'dep_exts'
+
 2.0.8.2 Sept 20, 2019 - more bug fixes for --search.  Fixed dependency issues
     when checking agaist easyconfigs with the search feature.
     
@@ -93,9 +98,9 @@ current version for each package.
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.2'
+__version__ = '2.0.8.3'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Sep 13, 2019'
+__date__ = 'Sep 25, 2019'
 
 
 class UpdateR(UpdateExts):
