@@ -48,12 +48,15 @@ class FrameWork:
         self.dep_exts = None
 
         full_path = os.path.dirname(args.easyconfig)
-        (head, tail) = os.path.split(full_path)
-        while tail:
-            if 'easyconfig' in tail:
-                self.base_path = os.path.join(head, tail)
-                break
-            (head, tail) = os.path.split(head)
+        if full_path == '.' or full_path == '':
+            self.base_path = '.'
+        else:
+            (head, tail) = os.path.split(full_path)
+            while tail:
+                if 'easyconfig' in tail:
+                    self.base_path = os.path.join(head, tail)
+                    break
+                (head, tail) = os.path.split(head)
 
         # update EasyConfig exts_list or check single package
         if args.easyconfig:
@@ -92,7 +95,7 @@ class FrameWork:
             try:
                 self.biocver = eb.biocver
             except (AttributeError, NameError):
-                pass
+                self.biocver = None
             self.check_eb_package_name(args.easyconfig)
             self.out = open(args.easyconfig[:-3] + ".update", 'w')
 

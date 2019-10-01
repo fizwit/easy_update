@@ -21,6 +21,16 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.5 Oct 1, 2019 Bug Fix: File "./easy_update.py", line 105, in __init__
+    UpdateExts.__init__(self, args, eb)
+  File "updateexts.py", line 91, in __init__
+    if eb.dep_exts:
+AttributeError: 'NoneType' object has no attribute 'dep_exts'
+
+2.0.8.4 Sept 26, 2019 Bug Fix: File "./easy_update.py", line 378, in get_pypi_release
+    for ver in project['releases'][new_version]:
+    NameError: name 'new_version' is not defined
+
 2.0.8.3 Sept 25, 2019 Bug Fix: File "updateexts.py", line 91, in __init__ 
     if eb.dep_exts:
     AttributeError: 'NoneType' object has no attribute 'dep_exts'
@@ -247,7 +257,7 @@ class UpdatePython(UpdateExts):
     """
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
-        self.debug = False 
+        self.debug = False
         self.pkg_dict = None
         self.not_found = 'not found'
         if eb:
@@ -261,10 +271,7 @@ class UpdatePython(UpdateExts):
         if pymajor == 3 and pyminor > 3:
             self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
                                     'functools32', 'enum34', 'future', 'configparser']
-        if self.search_pkg:
-            self.check_package(self.sea_pkg) 
-        else:
-            self.updateexts()
+        self.updateexts()
         if not self.search_pkg:
             eb.print_update('Python', self.exts_processed)
 
@@ -371,8 +378,11 @@ class UpdatePython(UpdateExts):
         the release for a wheel file.
         """
         status = self.not_found
-        new_version = pkg['meta']['version']
-        for ver in project['releases'][new_version]:
+        if 'version' in pkg['meta']:
+            version = pkg['meta']['version']
+        else:
+            print('no version info! for {}'.format(pkg['name']))
+        for ver in project['releases'][version]:
             if 'packagetype' in ver and ver['packagetype'] == 'sdist':
                 pkg['meta']['url'] = ver['url']
                 pkg['meta']['filename'] = ver['filename']
@@ -397,10 +407,12 @@ class UpdatePython(UpdateExts):
         if project == 'not found':
             return 'not found'
         pkg['meta'].update(project['info'])
+        new_version = pkg['meta']['version']
+        status = self.get_pypi_release(pkg, project)
+
         if 'requires_dist' in project['info']:
             requires = project['info']['requires_dist']
             pkg['meta']['requires'] = self.pypi_requires_dist(pkg['name'], requires)
-        status = self.get_pypi_release(pkg, project)
         if self.meta:
             self.print_meta(project['info'])
             sys.exit(0)
@@ -411,14 +423,14 @@ class UpdatePython(UpdateExts):
         this method is used with --search, otherwise, framework is used
         """
         pkg_fmt = self.indent + "('{}', '{}', {{\n"
-        item_fmt = self.indent + self.indent + "'%s': %s,\n"
+        item_fmt = self.indent + self.indent + "'%s': '%s',\n"
         if 'spec' in pkg:
             output = pkg_fmt.format(pkg['name'], pkg['version'])
             for item in pkg['spec'].keys():
                 output += item_fmt % (item, pkg['spec'][item])
             output += self.indent + "}),"
         else:
-            output = "('{}', '{}),".format(pkg['name'], pkg['version'])
+            output = self.indent + "('{}', '{}'),".format(pkg['name'], pkg['version'])
         return output
 
 def help():
@@ -465,8 +477,7 @@ def main():
         eb = FrameWork(args)
         args.lang = eb.name
         if eb.name == 'R':
-            args.rver = eb.version 
-            args.biocver = eb.biocver
+            args.rver = eb.version
         if eb.name == 'Python':
             args.pyver = eb.version
     if args.search_pkg:
