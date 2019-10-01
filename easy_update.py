@@ -4,7 +4,6 @@ import re
 import os
 import sys
 import argparse
-import imp
 import requests
 from framework import FrameWork
 from updateexts import UpdateExts
@@ -24,6 +23,10 @@ current version for each package.
 2.0.8.6 Oct 1, 2019 PR #17 merged from ccoulombe
     R modules are not necessarily installed with extensions. Fix the AttributeError when
     the R EasyConfig file does not contains exts_list.
+
+    PR #18 from ccoulombe  - Using importlib.util.module_from_spec(None) is not possible,
+    therefore using types.ModuleType() is the solution.
+
 
 2.0.8.5 Oct 1, 2019 Bug Fix: File "./easy_update.py", line 105, in __init__
     UpdateExts.__init__(self, args, eb)

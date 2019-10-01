@@ -4,7 +4,7 @@ import re
 import os
 import sys
 import argparse
-import imp
+import types 
 import requests
 
 """ 1.0.1 Aug, 15, 2019
@@ -111,7 +111,7 @@ class FrameWork:
                    'source/%(nameletter)s/%(name)s"\n')
         header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
                    '%(namelower)s"\n')
-        eb = imp.new_module("EasyConfig")
+        eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
                 code = f.read()
