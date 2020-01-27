@@ -358,6 +358,9 @@ class UpdatePython(UpdateExts):
         depends_on = []
         envs = ({'python_version': self.python_version, 'extra': 'deps'},
                 {'python_version': self.python_version, 'extra': 'all'},
+                {'python_version': self.python_version, 'extra': 'tests'},
+                {'python_version': self.python_version, 'extra': 'doc'},
+                {'python_version': self.python_version, 'extra': 'examples'},
                 )
         for require in requires:
             pkg_name = re.split('[ ><=!;(]', require)[0]
@@ -368,14 +371,17 @@ class UpdatePython(UpdateExts):
             marker_env = True
             if len(markers) > 1:
                 marker_obj = Marker(markers[1])
+                # this is a hack to remove extra dependencies, remove if you need some
+                if 'extra' in markers[1]:
+                    continue
                 for env in envs:
                     marker_env = marker_obj.evaluate(environment=env)
                     if self.debug:
-                        print(' - "{}": "{}" ({})'.format(pkg_name, markers[1],
+                        print(' - "{}": "{}" ({})'.format(pkg_name, env['extra'],
                                                           marker_env))
                     if marker_env:
                         break
-            if marker_env and pkg_name not in depends_on:
+            if not marker_env and (pkg_name not in depends_on):
                 depends_on.append(pkg_name)
         return depends_on
 
@@ -477,15 +483,16 @@ def main():
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
-    args.lang = None
     eb = None
+    args.lang = None
     if args.easyconfig:
         eb = FrameWork(args)
-        args.lang = eb.name
-        if eb.name == 'R':
-            args.rver = eb.version
-        if eb.name == 'Python':
-            args.pyver = eb.version
+        args.lang = eb.lang
+        if eb.lang == 'Python':
+            args.pyver = eb.pyver
+        if eb.lang == 'R':
+            args.rver = eb.rver
+
     if args.search_pkg:
         if args.rver:
             args.lang = 'R'
@@ -493,14 +500,10 @@ def main():
             args.lang = 'Python'
 
     if (not args.search_pkg) and (not args.easyconfig):
-        print('If no EasyConfig is given, a module name must be ' +
-              'specified with --search pkg_name')
-        sys.exit()
-
-    if not args.lang:
-        print('Could not determine language [R, Python]')
+        print('error: If no EasyConfig or search command')
+        help()
         sys.exit(1)
-
+   
     if args.lang == 'R':
         UpdateR(args, eb)
     elif args.lang == 'Python':

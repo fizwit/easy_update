@@ -40,12 +40,14 @@ class FrameWork:
         self.debug = False
         self.code = None
         self.pyver = None
+        self.rver = None
         self.search_pkg = None
+        self.lang = None
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ptr_head = 0
         self.modulename = None
-        self.dep_exts = None
+        self.dep_exts = []
 
         full_path = os.path.dirname(args.easyconfig)
         if full_path == '.' or full_path == '':
@@ -64,38 +66,37 @@ class FrameWork:
             self.exts_list = eb.exts_list
             self.toolchain = eb.toolchain
             self.name = eb.name
-            self.lang = str(eb.name)
             self.version = eb.version
-            if eb.name == 'Python':
-                self.pyver = eb.version
-            else:
-                self.pyver = None
-            self.modulename = eb.name + '-' + eb.version
-            self.modulename += '-' + eb.toolchain['name']
-            self.modulename += '-' + eb.toolchain['version']
             self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                                 'version': eb.version,
                                 'pyver': None,
                                 'rver': None}
-            self.dep_exts = self.parse_dependencies(eb, self.lang)
-            # exts_defaultclass = 'PythonPackage' | 'RPackage' | 'PerlModule'
             try:
-                self.versionsuffix = eb.versionsuffix
-                self.modulename += eb.versionsuffix
-            except (AttributeError, NameError):
-                self.versionsuffix = None
-            self.modulename = self.modulename % self.interpolate
+                self.defaultclass = eb.exts_defaultclass
+            except AttributeError:
+                self.defaultclass = None
+            self.parse_dependencies(eb, self.lang)
+            try:
+                self.versionsuffix = eb.versionsuffix % self.interpolate
+            except AttributeError:
+                self.versionsuffix = "" 
+            self.detect_language(eb)
+            if not self.lang:
+                print('Wow language is unknown!')
+
+            self.modulename = eb.name + '-' + eb.version
+            self.modulename += '-' + eb.toolchain['name']
+            self.modulename += '-' + eb.toolchain['version']
+            self.modulename += self.versionsuffix
             if self.debug:
                 sys.stderr.write('debug - modulename: %s\n' % self.modulename)
                 sys.stderr.write('debug -       file: %s\n' % filename[:-3])
-            try:
+            self.dependencies = None
+            if 'eb.dependancies'.isidentifier():
                 self.dependencies = eb.dependencies
-            except (AttributeError, NameError):
-                self.dependencies = None
-            try:
+            self.biocver = None
+            if 'eb.biocver'.isidentifier():
                 self.biocver = eb.biocver
-            except (AttributeError, NameError):
-                self.biocver = None
             self.check_eb_package_name(args.easyconfig)
             self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
@@ -107,6 +108,9 @@ class FrameWork:
         header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
         header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
         header += 'SOURCELOWER_TAR_GZ = "%(namelower)s-%(version)s.tar.gz"\n'
+        header += 'SOURCELOWER_TAR_BZ2 = "%(namelower)s-%(version)s.tar.bz2"\n'
+        header += 'SOURCELOWER_TAR_XZ = "%(namelower)s-%(version)s.tar.xz"\n'
+        header += 'SHLIB_EXT = ".so"\n'
         header += ('PYPI_SOURCE = "https://pypi.python.org/packages/' +
                    'source/%(nameletter)s/%(name)s"\n')
         header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
@@ -133,21 +137,46 @@ class FrameWork:
 
         return eb
 
-    def build_dep_filename(self, eb, dep, pyver=None):
-        """build a filename from a dependencie objecwt"""
-        dep_filename = '{}-{}-{}-{}'.format(dep[0], dep[1],
-                                            eb.toolchain['name'],
-                                            eb.toolchain['version'])
-        if pyver and len(dep) > 2:
-            versionsuffix = dep[2] % {'pyver': pyver}
+    def detect_language(self, eb):
+        """ R or Python? EasyConfig parameters: easyblock, name, versionsuffix
+        """
+        if eb.name == 'Python':
+            self.lang = str(eb.name)
+            self.interpolate['pyver'] = eb.version
+            return
+        if eb.name == 'R':
+            self.lang = str(eb.name)
+            self.interpolate['rver'] = eb.version
+            return
+        if 'Python' in self.versionsuffix:
+            self.lang = 'Python'
+            return
+        if '-R' in self.versionsuffix:
+            self.lang = 'R'
+            return
+        if self.defaultclass:
+            self.lang = self.exts_defaultclass.replace('Package', '')
+
+    def build_dep_filename(self, eb, dep):
+        """build a filename from a dependencie object"""
+        dep_filename = '{}-{}'.format(dep[0], dep[1])
+        if len(dep) == 4:
+            dep_filename += dep[2] + '.eb'
+            return dep_filename
+        dep_filename += '-{}-{}'.format(eb.toolchain['name'],eb.toolchain['version'])
+        if self.pyver and len(dep) > 2:
+            versionsuffix = dep[2] % {'pyver': self.pyver}
+            dep_filename += '{}'.format(versionsuffix)
+        if self.rver and len(dep) > 2:
+            versionsuffix = dep[2] % {'rver': self.rver}
             dep_filename += '{}'.format(versionsuffix)
         dep_filename += '.eb'
-        sys.stderr.write(" - dependency: {}\n".format(dep_filename))
         return dep_filename
 
     def find_easyconfig(self, easyconfig):
         """ search base_path for easyconfig filename """
         found = None
+        sys.stderr.write(" - reading dependency: {}\n".format(easyconfig))
         for r,d,f in os.walk(self.base_path):
             for filename in f:
                  if filename == easyconfig:
@@ -164,25 +193,27 @@ class FrameWork:
             dependencies = eb.dependencies
         except NameError:
             return None
-        dep_exts = []
         for dep in dependencies:
-            dep_filename = None
+            easyconfig = None
             if dep[0] in ['R', 'Python']:
-                if lang == dep[0]:
-                   dep_filename = self.build_dep_filename(eb, dep)
-            if lang == 'Python' and len(dep) > 2 and dep[2] == '-Python-%(pyver)s':
-                """ this is a PythonBundle """
-                # dep_exts.extend([(dep[0], dep[1])]) # Explictly add the module
-                dep_filename = self.build_dep_filename(eb, dep, self.pyver)
-            if dep_filename:
+                if dep[0] == 'Python':
+                    self.interpolate['pyver'] = dep[1]
+                    self.pyver = dep[1]
+                if dep[0] == 'R':
+                    self.interpolate['rver'] = dep[1]
+                    self.rver = dep[1]
+                dep_filename = self.build_dep_filename(eb, dep)
                 easyconfig = self.find_easyconfig(dep_filename)
-                if easyconfig:
-                    eb = self.parse_eb(str(easyconfig), False)
-                    try:
-                        dep_exts.extend(eb.exts_list)
-                    except (AttributeError, NameError):
-                        dep_exts.extend([dep])
-        return dep_exts
+            else:
+                dep_filename = self.build_dep_filename(eb, dep)
+                if '-R-' in dep_filename or '-Python-' in dep_filename:
+                    easyconfig = self.find_easyconfig(dep_filename)
+            if easyconfig:
+                eb = self.parse_eb(str(easyconfig), False)
+                try:
+                    self.dep_exts.extend(eb.exts_list)
+                except (AttributeError, NameError):
+                    self.dep_exts.extend([dep])
 
     def parse_python_deps(self, eb):
         """ Python EasyConfigs can have other Python packages in the

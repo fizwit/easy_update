@@ -109,9 +109,6 @@ class UpdateExts:
                 self.version = args.pyver
             elif args.rver:
                 self.version = args.rver
-            else:
-                print('Language and version must be specified with ' +
-                      '[--pyver x.x | --rver x.x | --biocver x.x]')
             self.sea_pkg = {'name': args.search_pkg,
                             'version': '',
                             'from': None,
