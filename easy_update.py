@@ -20,6 +20,7 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.7 Jan 26, 2010 Fix multi file dependency to support bundles
 2.0.8.6 Oct 1, 2019 PR #17 merged from ccoulombe
     R modules are not necessarily installed with extensions. Fix the AttributeError when
     the R EasyConfig file does not contains exts_list.
