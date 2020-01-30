@@ -39,7 +39,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
     for ver in project['releases'][new_version]:
     NameError: name 'new_version' is not defined
 
-2.0.8.3 Sept 25, 2019 Bug Fix: File "updateexts.py", line 91, in __init__ 
+2.0.8.3 Sept 25, 2019 Bug Fix: File "updateexts.py", line 91, in __init__
     if eb.dep_exts:
     AttributeError: 'NoneType' object has no attribute 'dep_exts'
 AttributeError: 'NoneType' object has no attribute 'dep_exts'
@@ -116,7 +116,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.6'
+__version__ = '2.0.8.7'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -342,7 +342,7 @@ class UpdatePython(UpdateExts):
         and Python release. Return the edited list of dependancies. Format of output
         is a single list with only the package names.
 
-        Note: the project name can be different from the 'package' name. 
+        Note: the project name can be different from the 'package' name.
 
         Only add deps where "extra" == 'deps' or 'all'
         requires_dist: <name> <version>[; Environment Markers]
@@ -365,24 +365,14 @@ class UpdatePython(UpdateExts):
                 )
         for require in requires:
             pkg_name = re.split('[ ><=!;(]', require)[0]
+            #print('checking: {}'.format(pkg_name))
             if self.is_processed(pkg={'name': pkg_name, 'from': name, 'type': 'dep'}):
                 continue
             # check for Markers and process
             markers = require.split(';')
-            marker_env = True
-            if len(markers) > 1:
-                marker_obj = Marker(markers[1])
-                # this is a hack to remove extra dependencies, remove if you need some
-                if 'extra' in markers[1]:
-                    continue
-                for env in envs:
-                    marker_env = marker_obj.evaluate(environment=env)
-                    if self.debug:
-                        print(' - "{}": "{}" ({})'.format(pkg_name, env['extra'],
-                                                          marker_env))
-                    if marker_env:
-                        break
-            if not marker_env and (pkg_name not in depends_on):
+            if len(markers) > 1 and 'extra' in markers[1]:
+                continue
+            if pkg_name not in depends_on:
                 depends_on.append(pkg_name)
         return depends_on
 
