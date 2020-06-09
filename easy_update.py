@@ -125,32 +125,25 @@ class UpdateR(UpdateExts):
     """
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
+        print('processing: {}'.format(eb.name))
         self.debug = False
         self.bioc_data = {}
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
                                'grDevices', 'grid', 'methods', 'parallel',
                                'splines', 'stats', 'stats4', 'tcltk', 'tools',
                                'utils', ]
-        try:
-            self.biocver = args.biocver
-        except NameError:
-            self.biocver = None
-        if not self.biocver:
-            try:
-                self.biocver = eb.biocver
-            except (AttributeError, NameError):
-                self.biocver = None
-                print('BioCondutor version: biocver not set')
-        if self.biocver:
-            self.read_bioconductor_packages()
+        if eb.biocver:
+            self.read_bioconductor_packages(eb.biocver)
+        else:
+            print('WARNING: BioCondutor version is not set; local_biocver ')
         self.updateexts()
         if not self.search_pkg:
             eb.print_update('R', self.exts_processed)
 
-    def read_bioconductor_packages(self):
+    def read_bioconductor_packages(self, biocver):
         """ read the Bioconductor package list into bio_data dict
         """
-        base_url = 'https://bioconductor.org/packages/json/%s' % self.biocver
+        base_url = 'https://bioconductor.org/packages/json/%s' % biocver
         bioc_urls = ['%s/bioc/packages.json' % base_url,
                      '%s/data/annotation/packages.json' % base_url,
                      '%s/data/experiment/packages.json' % base_url]
@@ -272,19 +265,16 @@ class UpdatePython(UpdateExts):
         else:
             (nums) = args.pyver.split('.')
         self.python_version = "%s.%s" % (nums[0], nums[1])
-        pymajor = int(nums[0])
-        pyminor = int(nums[1])
         # Python >3.3 has additional built in modules
-        if pymajor == 3 and pyminor > 3:
-            self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
-                                    'functools32', 'enum34', 'future', 'configparser']
+        self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
+                                'functools32', 'enum34', 'future', 'configparser']
         self.updateexts()
         if not self.search_pkg:
             eb.print_update('Python', self.exts_processed)
 
     def get_pypi_pkg_data(self, pkg, version=None):
         """
-        return meta data from PyPi.org
+        return meta data from PyPi.org)
         """
         if version:
             req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
@@ -410,7 +400,7 @@ class UpdatePython(UpdateExts):
         if project == 'not found':
             return 'not found'
         pkg['meta'].update(project['info'])
-        new_version = pkg['meta']['version']
+        # new_version = pkg['meta']['version']
         status = self.get_pypi_release(pkg, project)
 
         if 'requires_dist' in project['info']:
@@ -436,17 +426,6 @@ class UpdatePython(UpdateExts):
             output = self.indent + "('{}', '{}'),".format(pkg['name'], pkg['version'])
         return output
 
-def help():
-    print("usage: easy_update  EasyConfig.eb [flags]")
-    print("easy_update Updates ext_list information of EasyBuild"),
-    print(" EasyConfig files")
-    print("easy_update works with R, Python and R-bioconductor"),
-    print(" EasyConfig files")
-    print("  --verbose  diplay status for each package")
-    print("  --add [filename]  filename contains list of package"),
-    print(" names to add")
-    sys.exit()
-
 
 def main():
     """ main """
@@ -461,13 +440,10 @@ def main():
                         help='Set R version (major.minor) example 3.6')
     bioc_help = 'Set BioConductor version (major.minor) example 3.9. '
     bioc_help += 'Use with --rver'
-    parser.add_argument('--biocver', dest='biocver', required=False,
-                        action='store', help=bioc_help)
-    parser.add_argument('--pyver', dest='pyver', required=False, action='store',
-                        help='Set Python version [2.7 or 3.6]')
-    search_help = 'Search for single package. requires --rver or --pyver'
-    parser.add_argument('--search', dest='search_pkg', required=False, action='store',
-                        help=search_help)
+    parser.add_argument('--pypisearch', dest='pypisearch', required=False, action='store',
+                        help='Search PYPI for package info and dependencies')
+    parser.add_argument('--rsisearch', dest='rsearch', required=False, action='store',
+                        help='Search CRAN for R libraries')
     parser.add_argument('--meta', dest='meta', required=False, action='store_true',
                         help='output select meta data keys from Pypi, if used with ' +
                              'verbose all metadata is output (default: false)')
@@ -476,6 +452,7 @@ def main():
 
     eb = None
     args.lang = None
+    args.search_pkg = None
     if args.easyconfig:
         eb = FrameWork(args)
         args.lang = eb.lang
@@ -484,21 +461,21 @@ def main():
         if eb.lang == 'R':
             args.rver = eb.rver
 
-    if args.search_pkg:
-        if args.rver:
-            args.lang = 'R'
-        elif args.pyver:
-            args.lang = 'Python'
+    if args.pypisearch:
+        args.lang = 'Python'
+        args.search_pkg = args.pypisearch
+    if args.rsearch:
+        args.lang = 'R'
+        args.search_pkg = args.rsearch
 
-    if (not args.search_pkg) and (not args.easyconfig):
-        print('error: If no EasyConfig or search command')
-        help()
-        sys.exit(1)
-   
     if args.lang == 'R':
         UpdateR(args, eb)
     elif args.lang == 'Python':
         UpdatePython(args, eb)
+    else:
+        print('error: If no EasyConfig or search command:  ' +
+              'easy_update --help')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

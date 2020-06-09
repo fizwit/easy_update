@@ -95,8 +95,12 @@ class FrameWork:
             if 'eb.dependancies'.isidentifier():
                 self.dependencies = eb.dependencies
             self.biocver = None
-            if 'eb.biocver'.isidentifier():
-                self.biocver = eb.biocver
+            if self.lang == 'R':
+                try:
+                    self.biocver = eb.local_biocver
+                except AttributeError:
+                    print('WARNING: BioCondutor version is not set in easyconfig; local_biocver ')
+            print('framwork-biocver: {}'.format(self.biocver))
             self.check_eb_package_name(args.easyconfig)
             self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
@@ -129,7 +133,7 @@ class FrameWork:
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
-        
+
         # R module might have been installed without extensions.
         # Start with an empty list if it is the case.
         if 'exts_list' not in eb.__dict__:
@@ -176,7 +180,6 @@ class FrameWork:
     def find_easyconfig(self, easyconfig):
         """ search base_path for easyconfig filename """
         found = None
-        sys.stderr.write(" - reading dependency: {}\n".format(easyconfig))
         for r,d,f in os.walk(self.base_path):
             for filename in f:
                  if filename == easyconfig:
@@ -209,6 +212,8 @@ class FrameWork:
                 if '-R-' in dep_filename or '-Python-' in dep_filename:
                     easyconfig = self.find_easyconfig(dep_filename)
             if easyconfig:
+                sys.stderr.write(" - reading dependency: {}\n".format(
+                                 os.path.basename(easyconfig)))
                 eb = self.parse_eb(str(easyconfig), False)
                 try:
                     self.dep_exts.extend(eb.exts_list)

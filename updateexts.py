@@ -102,7 +102,6 @@ class UpdateExts:
             self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                                 'version': eb.version}
         if self.search_pkg:
-            self.search_pkg = args.search_pkg
             if args.biocver:
                 self.biocver = args.biocver
             if args.pyver:
