@@ -159,7 +159,7 @@ class FrameWork:
             self.lang = 'R'
             return
         if self.defaultclass:
-            self.lang = self.exts_defaultclass.replace('Package', '')
+            self.lang = eb.exts_defaultclass.replace('Package', '')
 
     def build_dep_filename(self, eb, dep):
         """build a filename from a dependencie object"""

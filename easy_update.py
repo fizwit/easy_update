@@ -9,6 +9,11 @@ from framework import FrameWork
 from updateexts import UpdateExts
 from packaging.markers import Marker, UndefinedEnvironmentName
 
+# only works with Python 3 (due to use of isidentifier for example)
+if sys.version_info < (3,):
+    sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
+    sys.exit(1)
+
 # from pprint import pprint
 
 """
