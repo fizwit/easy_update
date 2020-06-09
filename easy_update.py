@@ -25,7 +25,8 @@ current version for each package.
 """
 
 """ Release Notes
-2.0.8.7 Jan 26, 2010 Fix multi file dependency to support bundles
+2.0.8.8 June 9, 2020 fix R package dependency lookups. Support for "local_biocver"
+2.0.8.7 Jan 26, 2020 Fix multi file dependency to support bundles
 2.0.8.6 Oct 1, 2019 PR #17 merged from ccoulombe
     R modules are not necessarily installed with extensions. Fix the AttributeError when
     the R EasyConfig file does not contains exts_list.
@@ -121,7 +122,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.7'
+__version__ = '2.0.8.8'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
