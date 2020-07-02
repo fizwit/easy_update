@@ -79,7 +79,7 @@ class FrameWork:
             try:
                 self.versionsuffix = eb.versionsuffix % self.interpolate
             except AttributeError:
-                self.versionsuffix = "" 
+                self.versionsuffix = ""
             self.detect_language(eb)
             if not self.lang:
                 print('Wow language is unknown!')
@@ -92,15 +92,16 @@ class FrameWork:
                 sys.stderr.write('debug - modulename: %s\n' % self.modulename)
                 sys.stderr.write('debug -       file: %s\n' % filename[:-3])
             self.dependencies = None
-            if 'eb.dependancies'.isidentifier():
+            try:
                 self.dependencies = eb.dependencies
-            self.biocver = None
+            except AttributeError:
+                print('WARNING: no dependencies defined!')
             if self.lang == 'R':
                 try:
                     self.biocver = eb.local_biocver
                 except AttributeError:
                     print('WARNING: BioCondutor version is not set in easyconfig; local_biocver ')
-            print('framwork-biocver: {}'.format(self.biocver))
+                    sys.exit(1)
             self.check_eb_package_name(args.easyconfig)
             self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
