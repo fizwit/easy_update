@@ -49,16 +49,16 @@ class FrameWork:
         self.modulename = None
         self.dep_exts = []
 
-        full_path = os.path.dirname(args.easyconfig)
-        if full_path == '.' or full_path == '':
-            self.base_path = '.'
-        else:
-            (head, tail) = os.path.split(full_path)
-            while tail:
-                if 'easyconfig' in tail:
-                    self.base_path = os.path.join(head, tail)
-                    break
-                (head, tail) = os.path.split(head)
+        # find the top of the EasyConfig file structure
+        ECpath = os.path.dirname(args.easyconfig)
+        if ECpath == '.' or ECpath == '':
+            fullPath = os.path.join(os.getcwd(), args.easyconfig)
+        (head, tail) = os.path.split(fullPath)
+        while tail:
+            if 'easyconfig' in tail:
+                self.base_path = os.path.join(head, tail)
+                break
+            (head, tail) = os.path.split(head)
 
         # update EasyConfig exts_list or check single package
         if args.easyconfig:
@@ -143,24 +143,23 @@ class FrameWork:
         return eb
 
     def detect_language(self, eb):
-        """ R or Python? EasyConfig parameters: easyblock, name, versionsuffix
+        """ R or Python? EasyConfig parameters: easyblock or name
+        Test Case: CNVkit
         """
         if eb.name == 'Python':
             self.lang = str(eb.name)
             self.interpolate['pyver'] = eb.version
-            return
+        if eb.easyblock == 'PythonPackage' or eb.easyblock == 'PythonBundle':
+            self.lang = 'Python'
         if eb.name == 'R':
             self.lang = str(eb.name)
             self.interpolate['rver'] = eb.version
-            return
-        if 'Python' in self.versionsuffix:
-            self.lang = 'Python'
-            return
-        if '-R' in self.versionsuffix:
+        if eb.easyblock == 'RPackage':
             self.lang = 'R'
-            return
         if self.defaultclass:
             self.lang = eb.exts_defaultclass.replace('Package', '')
+        if self.lang is None:
+            print('hmm, what languange?')
 
     def build_dep_filename(self, eb, dep):
         """build a filename from a dependencie object"""
@@ -169,11 +168,8 @@ class FrameWork:
             dep_filename += dep[2] + '.eb'
             return dep_filename
         dep_filename += '-{}-{}'.format(eb.toolchain['name'],eb.toolchain['version'])
-        if self.pyver and len(dep) > 2:
-            versionsuffix = dep[2] % {'pyver': self.pyver}
-            dep_filename += '{}'.format(versionsuffix)
-        if self.rver and len(dep) > 2:
-            versionsuffix = dep[2] % {'rver': self.rver}
+        if len(dep) > 2:
+            versionsuffix = dep[2] % self.interpolate
             dep_filename += '{}'.format(versionsuffix)
         dep_filename += '.eb'
         return dep_filename
@@ -203,14 +199,17 @@ class FrameWork:
                 if dep[0] == 'Python':
                     self.interpolate['pyver'] = dep[1]
                     self.pyver = dep[1]
+                    print('found Python {}'.format(self.pyver))
                 if dep[0] == 'R':
                     self.interpolate['rver'] = dep[1]
                     self.rver = dep[1]
+                    print('found R-{}'.format(self.rver))
                 dep_filename = self.build_dep_filename(eb, dep)
                 easyconfig = self.find_easyconfig(dep_filename)
             else:
                 dep_filename = self.build_dep_filename(eb, dep)
-                if '-R-' in dep_filename or '-Python-' in dep_filename:
+                if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or '-Python-' in dep_filename:
+                    print('deubug - find Dep: {}'.format(dep_filename))
                     easyconfig = self.find_easyconfig(dep_filename)
             if easyconfig:
                 sys.stderr.write(" - reading dependency: {}\n".format(

@@ -25,6 +25,9 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.9 July 6, 2020 CNVkit, dependencies on both R and Python. fix bug so easy_update could
+        not determine language of exts_list. Fix base_path to find to of easyconfig
+        directory tree. Did not reconize R-bundel-Bioconductor as an R depenency, fixed.
 2.0.8.8 June 9, 2020 fix R package dependency lookups. Support for "local_biocver"
 2.0.8.7 Jan 26, 2020 Fix multi file dependency to support bundles
 2.0.8.6 Oct 1, 2019 PR #17 merged from ccoulombe
@@ -52,7 +55,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
 
 2.0.8.2 Sept 20, 2019 - more bug fixes for --search.  Fixed dependency issues
     when checking agaist easyconfigs with the search feature.
-    
+
 2.0.8.1 Sep 18, 2019 Bug fix - output_module was broken when framework was
     seperated from updateexts
 
@@ -122,7 +125,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.8'
+__version__ = '2.0.8.9'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 

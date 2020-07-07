@@ -252,14 +252,18 @@ def main():
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
+    eb = None
+    args.lang = None
     if args.easyconfig:
         eb = FrameWork(args)
-    else:
-        print("provide a module nameModule with R-, or Python-")
-        sys.exit(1)
-    if eb.name == 'R':
+        args.lang = eb.lang
+        if eb.lang == 'Python':
+            args.pyver = eb.pyver
+        if eb.lang == 'R':
+            args.rver = eb.rver
+    if args.lang == 'R':
         R(eb, args.verbose)
-    elif eb.name == 'Python':
+    elif args.lang == 'Python':
         PythonExts(eb, args.verbose)
     else:
         print('easyanotate does not know how to process: {}'.format(eb.name))
