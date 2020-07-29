@@ -116,6 +116,7 @@ class FrameWork:
         header += 'SOURCELOWER_TAR_BZ2 = "%(namelower)s-%(version)s.tar.bz2"\n'
         header += 'SOURCELOWER_TAR_XZ = "%(namelower)s-%(version)s.tar.xz"\n'
         header += 'SHLIB_EXT = ".so"\n'
+        header += 'GITHUB_SOURCE = "https://github.com/%(github_account)s/%(name)s"\n'
         header += ('PYPI_SOURCE = "https://pypi.python.org/packages/' +
                    'source/%(nameletter)s/%(name)s"\n')
         header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
@@ -205,10 +206,12 @@ class FrameWork:
                     self.rver = dep[1]
                     print('found R-{}'.format(self.rver))
                 dep_filename = self.build_dep_filename(eb, dep)
+                print('language file: {}'.format(dep_filename))
                 easyconfig = self.find_easyconfig(dep_filename)
             else:
                 dep_filename = self.build_dep_filename(eb, dep)
-                if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or '-Python-' in dep_filename:
+                if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or (
+                    'Python-' == dep_filename[0:6] or '-Python-' in dep_filename):
                     print('deubug - find Dep: {}'.format(dep_filename))
                     easyconfig = self.find_easyconfig(dep_filename)
             if easyconfig:

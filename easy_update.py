@@ -25,6 +25,7 @@ current version for each package.
 """
 
 """ Release Notes
+2.0.8.10 July 29 minor bug fixes
 2.0.8.9 July 6, 2020 CNVkit, dependencies on both R and Python. fix bug so easy_update could
         not determine language of exts_list. Fix base_path to find to of easyconfig
         directory tree. Did not reconize R-bundel-Bioconductor as an R depenency, fixed.
@@ -125,7 +126,7 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.9'
+__version__ = '2.0.8.'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -269,7 +270,7 @@ class UpdatePython(UpdateExts):
         self.debug = False
         self.pkg_dict = None
         self.not_found = 'not found'
-        if eb:
+        if eb.name == 'Python':
             (nums) = eb.version.split('.')
         else:
             (nums) = args.pyver.split('.')
