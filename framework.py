@@ -4,7 +4,7 @@ import re
 import os
 import sys
 import argparse
-import types 
+import types
 import requests
 
 """ 1.0.1 Aug, 15, 2019
@@ -50,9 +50,8 @@ class FrameWork:
         self.dep_exts = []
 
         # find the top of the EasyConfig file structure
-        ECpath = os.path.dirname(args.easyconfig)
-        if ECpath == '.' or ECpath == '':
-            fullPath = os.path.join(os.getcwd(), args.easyconfig)
+        userPath = os.path.expanduser(args.easyconfig)
+        fullPath = os.path.abspath(userPath)
         (head, tail) = os.path.split(fullPath)
         while tail:
             if 'easyconfig' in tail:
