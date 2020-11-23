@@ -25,6 +25,8 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.0 Nov 22, 2020 - Major changes to framework. See framework.py for more details.
+
 2.0.8.10 July 29 minor bug fixes
 2.0.8.9 July 6, 2020 CNVkit, dependencies on both R and Python. fix bug so easy_update could
         not determine language of exts_list. Fix base_path to find to of easyconfig
@@ -126,7 +128,8 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
-__version__ = '2.0.8.'
+__version__ = '2.1.0'
+__date__ = 'November 22, 2020'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -273,7 +276,7 @@ class UpdatePython(UpdateExts):
         if eb.name == 'Python':
             (nums) = eb.version.split('.')
         else:
-            (nums) = args.pyver.split('.')
+            (nums) = eb.pyver.split('.')
         self.python_version = "%s.%s" % (nums[0], nums[1])
         # Python >3.3 has additional built in modules
         self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
@@ -442,49 +445,21 @@ def main():
     parser = argparse.ArgumentParser(description='Update EasyConfig extslist')
 
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + __version__)
+                        version='%(prog)s ' + __version__ + '  ' + __date__)
     parser.add_argument(
         '-v', '--verbose', dest='verbose', required=False, action='store_true',
         help='Verbose; print lots of extra stuff, (default: false)')
-    parser.add_argument('--rver', dest='rver', required=False, action='store',
-                        help='Set R version (major.minor) example 3.6')
-    bioc_help = 'Set BioConductor version (major.minor) example 3.9. '
-    bioc_help += 'Use with --rver'
-    parser.add_argument('--pypisearch', dest='pypisearch', required=False, action='store',
-                        help='Search PYPI for package info and dependencies')
-    parser.add_argument('--rsisearch', dest='rsearch', required=False, action='store',
-                        help='Search CRAN for R libraries')
-    parser.add_argument('--meta', dest='meta', required=False, action='store_true',
-                        help='output select meta data keys from Pypi, if used with ' +
-                             'verbose all metadata is output (default: false)')
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
-    eb = None
-    args.lang = None
-    args.search_pkg = None
     if args.easyconfig:
         eb = FrameWork(args)
-        args.lang = eb.lang
-        if eb.lang == 'Python':
-            args.pyver = eb.pyver
         if eb.lang == 'R':
-            args.rver = eb.rver
-
-    if args.pypisearch:
-        args.lang = 'Python'
-        args.search_pkg = args.pypisearch
-    if args.rsearch:
-        args.lang = 'R'
-        args.search_pkg = args.rsearch
-
-    if args.lang == 'R':
-        UpdateR(args, eb)
-    elif args.lang == 'Python':
-        UpdatePython(args, eb)
+            UpdateR(args, eb)
+        elif eb.lang == 'Python':
+            UpdatePython(args, eb)
     else:
-        print('error: If no EasyConfig or search command:  ' +
-              'easy_update --help')
+        print('error: No EasyConfig speicified')
         sys.exit(1)
 
 

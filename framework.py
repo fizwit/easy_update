@@ -3,11 +3,26 @@
 import re
 import os
 import sys
+import shutil
 import argparse
 import types
 import requests
+import logging
 
-""" 1.0.1 Aug, 15, 2019
+""" 1.0.2 Nov 21, 2020
+    Fix issue with not being able to read Python dependancies for minimal toolchain.
+    Python-3.7.3-foss-2019b.eb should be Python-3.7.4-GCCcore-8.3.0.eb
+
+    Require EasyBuild to be loaded. Use "eb" path to find easybuild/easyconfigs
+
+    <find_easyconfig> now supports a list of paths, $PWD plus EasyBuild easyconfig path
+    search easyconfig asumes slphabet soup of directory names.
+    ie: SciPy-bundle-2020.06-foss-2020a-Python-3.8.2.eb will be search for in the directory: s/SciPy-bundle
+    <build_dep_filename> now supports a list of file names based on minimal toolchain
+
+    add logging.debug()
+
+    1.0.1 Aug, 15, 2019
     fix parse_dependencies
     For the case of reading Python dependancies, conver the
     case of 'Biopython-1.74-foss-2016b-Python-3.7.4'
@@ -25,10 +40,11 @@ import requests
     Read exts_list for R and Python listed in dependencies.
 """
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'July 9, 2019'
+__date__ = 'Nov 21, 2020'
 
+logging.basicConfig(level=logging.WARN)
 
 class FrameWork:
     """provide access to EasyBuild Config file variables
@@ -37,7 +53,7 @@ class FrameWork:
         print_update()
     """
     def __init__(self, args):
-        self.debug = False
+        self.verbose = args.verbose
         self.code = None
         self.pyver = None
         self.rver = None
@@ -49,60 +65,52 @@ class FrameWork:
         self.modulename = None
         self.dep_exts = []
 
-        # find the top of the EasyConfig file structure
-        userPath = os.path.expanduser(args.easyconfig)
-        fullPath = os.path.abspath(userPath)
-        (head, tail) = os.path.split(fullPath)
-        while tail:
-            if 'easyconfig' in tail:
-                self.base_path = os.path.join(head, tail)
-                break
-            (head, tail) = os.path.split(head)
+        self.find_easyconfig_paths(args.easyconfig)
+        logging.debug("EB search path: {}".format(self.base_path))
 
-        # update EasyConfig exts_list or check single package
-        if args.easyconfig:
-            eb = self.parse_eb(args.easyconfig, primary=True)
-            self.exts_list = eb.exts_list
-            self.toolchain = eb.toolchain
-            self.name = eb.name
-            self.version = eb.version
-            self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
-                                'version': eb.version,
-                                'pyver': None,
-                                'rver': None}
-            try:
-                self.defaultclass = eb.exts_defaultclass
-            except AttributeError:
-                self.defaultclass = None
-            self.parse_dependencies(eb, self.lang)
-            try:
-                self.versionsuffix = eb.versionsuffix % self.interpolate
-            except AttributeError:
-                self.versionsuffix = ""
-            self.detect_language(eb)
-            if not self.lang:
-                print('Wow language is unknown!')
+        # update EasyConfig exts_list
+        
+        eb = self.parse_eb(args.easyconfig, primary=True)
+        self.exts_list = eb.exts_list
+        self.toolchain = eb.toolchain
+        self.name = eb.name
+        self.version = eb.version
+        self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
+                            'version': eb.version,
+                            'pyver': None,
+                            'rver': None}
+        try:
+            self.defaultclass = eb.exts_defaultclass
+        except AttributeError:
+            self.defaultclass = None
+        self.detect_language(eb)
+        if not self.lang:
+            logging.debug('Wow language is unknown!')
+        self.parse_dependencies(eb, self.lang)
+        try:
+            self.versionsuffix = eb.versionsuffix % self.interpolate
+        except AttributeError:
+            self.versionsuffix = ""
+        
 
-            self.modulename = eb.name + '-' + eb.version
-            self.modulename += '-' + eb.toolchain['name']
-            self.modulename += '-' + eb.toolchain['version']
-            self.modulename += self.versionsuffix
-            if self.debug:
-                sys.stderr.write('debug - modulename: %s\n' % self.modulename)
-                sys.stderr.write('debug -       file: %s\n' % filename[:-3])
-            self.dependencies = None
+        self.modulename = eb.name + '-' + eb.version
+        self.modulename += '-' + eb.toolchain['name']
+        self.modulename += '-' + eb.toolchain['version']
+        self.modulename += self.versionsuffix
+        logging.debug('modulename: {}'.format(self.modulename))
+        self.dependencies = None
+        try:
+            self.dependencies = eb.dependencies
+        except AttributeError:
+            logging.warn('WARNING: no dependencies defined!')
+        if self.lang == 'R':
             try:
-                self.dependencies = eb.dependencies
+                self.biocver = eb.local_biocver
             except AttributeError:
-                print('WARNING: no dependencies defined!')
-            if self.lang == 'R':
-                try:
-                    self.biocver = eb.local_biocver
-                except AttributeError:
-                    print('WARNING: BioCondutor version is not set in easyconfig; local_biocver ')
-                    sys.exit(1)
-            self.check_eb_package_name(args.easyconfig)
-            self.out = open(args.easyconfig[:-3] + ".update", 'w')
+                logging.warn('WARNING: BioCondutor version is not set in easyconfig; local_biocver ')
+                sys.exit(1)
+        self.check_eb_package_name(args.easyconfig)
+        self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
         """ interpret EasyConfig file with 'exec'.  Interperting fails if
@@ -125,12 +133,12 @@ class FrameWork:
             with open(file_name, "r") as f:
                 code = f.read()
         except IOError as err:
-            print("opening %s: %s" % (file_name, err))
+            logging.debug("opening %s: %s" % (file_name, err))
             sys.exit(1)
         try:
             exec (header + code, eb.__dict__)
         except Exception as err:
-            print("interperting EasyConfig error: %s" % err)
+            logging.debug("interperting EasyConfig error: %s" % err)
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
@@ -159,31 +167,85 @@ class FrameWork:
         if self.defaultclass:
             self.lang = eb.exts_defaultclass.replace('Package', '')
         if self.lang is None:
-            print('hmm, what languange?')
+            logging.warn('can not determin either R or Python?')
 
-    def build_dep_filename(self, eb, dep):
-        """build a filename from a dependencie object"""
-        dep_filename = '{}-{}'.format(dep[0], dep[1])
-        if len(dep) == 4:
-            dep_filename += dep[2] + '.eb'
-            return dep_filename
-        dep_filename += '-{}-{}'.format(eb.toolchain['name'],eb.toolchain['version'])
-        if len(dep) > 2:
-            versionsuffix = dep[2] % self.interpolate
-            dep_filename += '{}'.format(versionsuffix)
-        dep_filename += '.eb'
-        return dep_filename
+    def find_easyconfig_paths(self, filename):
+        """find the paths to EasyConfigs, search within the path given by the esayconfig
+        given to update. Search for eb command
+        """
+        userPath = os.path.expanduser(filename)
+        fullPath = os.path.abspath(userPath)
+        (head, tail) = os.path.split(fullPath)
+        while tail:
+            if 'easyconfig' in tail:
+                self.base_path = os.path.join(head, tail)
+                break
+            (head, tail) = os.path.split(head)
+        eb_path = shutil.which("eb")
+        if eb_path:
+            logging.debug('EB path: {}'.format(eb_path))
+            ec_path = eb_path.replace('bin/eb', 'easybuild/easyconfigs')
+            self.base_path += ':' + ec_path
+        else:
+            sys.stderr.writelines('Could not fine path to EasyBuild, EasyBuild module must be loaded')
+            sys.exit(1)
 
-    def find_easyconfig(self, easyconfig):
+
+    def find_easyconfig(self, name, easyconfigs):
         """ search base_path for easyconfig filename """
         found = None
-        for r,d,f in os.walk(self.base_path):
-            for filename in f:
-                 if filename == easyconfig:
-                      found = os.path.join(r,filename)
-                      break
-        return found
+        first_letter = easyconfigs[0][0].lower()
+        for easyconfig in easyconfigs:          
+            for ec_dir in self.base_path.split(':'):
+                narrow = ec_dir + '/' + first_letter + '/' + name
+                logging.debug('find_easyconfig: search for {} in {} '.format(easyconfig, narrow))
+                for r,d,f in os.walk(narrow):
+                    for filename in f:
+                        if filename == easyconfig:
+                            found = os.path.join(r,filename)
+                            return found
+        return None
 
+
+    def build_dep_filename(self, eb, dep):
+        """build a filename from a dependencie object. Hack minimal toolchain support
+        for Python.  foss-2019 -> GCCcore-8.3.0
+        """
+        py_minimal_map = [
+            ['foss-2019a', 'GCCcore-8.2.0'],
+            ['foss-2019b', 'GCCcore-8.3.0'],
+            ['foss-2020a', 'GCCcore-9.3.0'],
+            ['foss-2020b', 'GCCcore-10.2.0'],
+            ['foss-2020a', 'gompi-2020a'],
+            ['fosscuda-2019a', 'GCCcore-8.2.0'],
+            ['fosscuda-2019b', 'GCCcore-8.3.0'],
+            ['fosscuda-2020a', 'GCCcore-9.3.0'],
+            ['fosscuda-2020b', 'GCCcore-10.2.0'],
+        ]
+        primary_toolchain = '{}-{}'.format(self.toolchain['name'],self.toolchain['version'])
+        toolchains = [primary_toolchain]
+        if self.lang and self.lang == 'Python':
+            for map in py_minimal_map:
+                if map[0] == primary_toolchain:
+                    toolchains.append(map[1])
+            logging.debug('Python Toolchains: {}'.format(toolchains))
+        dep_filenames = list()
+        for toolchain in toolchains:
+            dep_filename = '{}-{}'.format(dep[0], dep[1])
+            if len(dep) == 4:
+                dep_filename += dep[2]
+            if len(dep) == 2:
+               dep_filename += '-{}'.format(toolchain)
+            if len(dep) == 3:
+                dep_filename += '-{}'.format(toolchain)
+                versionsuffix = dep[2] % self.interpolate
+                dep_filename += '{}'.format(versionsuffix)
+            dep_filename += '.eb'
+            dep_filenames.append(dep_filename)
+        logging.debug('build_dep_filename {}'.format(dep_filenames))
+        return dep_filenames
+
+ 
     def parse_dependencies(self, eb, lang):
         """ inspect dependencies for R and Python easyconfigs,
         if found add the exts_list to the list of dependent
@@ -199,28 +261,31 @@ class FrameWork:
                 if dep[0] == 'Python':
                     self.interpolate['pyver'] = dep[1]
                     self.pyver = dep[1]
-                    print('found Python {}'.format(self.pyver))
+                    logging.debug('primary language Python {}'.format(self.pyver))
                 if dep[0] == 'R':
                     self.interpolate['rver'] = dep[1]
                     self.rver = dep[1]
-                    print('found R-{}'.format(self.rver))
-                dep_filename = self.build_dep_filename(eb, dep)
-                print('language file: {}'.format(dep_filename))
-                easyconfig = self.find_easyconfig(dep_filename)
+                    logging.debug('primary language R-{}'.format(self.rver))
+                dep_filenames = self.build_dep_filename(eb, dep)
+                logging.debug('language file: {}'.format(dep_filenames))
+                easyconfig = self.find_easyconfig(dep[0], dep_filenames)
             else:
-                dep_filename = self.build_dep_filename(eb, dep)
-                if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or (
-                    'Python-' == dep_filename[0:6] or '-Python-' in dep_filename):
-                    print('deubug - find Dep: {}'.format(dep_filename))
-                    easyconfig = self.find_easyconfig(dep_filename)
+                dep_filenames = self.build_dep_filename(eb, dep)
+                for dep_filename in dep_filenames:
+                    if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or (
+                        'Python-' == dep_filename[0:6] or '-Python-' in dep_filename):
+                        logging.debug('deubug - language dependencie: {}'.format(dep_filename))
+                        easyconfig = self.find_easyconfig(dep[0], dep_filenames)
+                        break
             if easyconfig:
-                sys.stderr.write(" - reading dependency: {}\n".format(
-                                 os.path.basename(easyconfig)))
+                if self.verbose:
+                    print('reading dependency: {}'.format(os.path.basename(easyconfig)))
                 eb = self.parse_eb(str(easyconfig), False)
                 try:
                     self.dep_exts.extend(eb.exts_list)
                 except (AttributeError, NameError):
                     self.dep_exts.extend([dep])
+
 
     def parse_python_deps(self, eb):
         """ Python EasyConfigs can have other Python packages in the
@@ -241,7 +306,7 @@ class FrameWork:
         if eb_name != self.modulename:
             sys.stderr.write("Warning: file name does not match easybuild " +
                              "module name\n"),
-        if eb_name != self.modulename or self.debug:
+        if eb_name != self.modulename:
             sys.stderr.write("   file name: %s\n module name: %s\n" % (
                 eb_name, self.modulename))
 
@@ -328,4 +393,4 @@ class FrameWork:
 
 if __name__ == '__main__':
     """ create unit test """
-    print('none') 
+    print('none')

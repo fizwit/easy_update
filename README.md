@@ -11,12 +11,14 @@ packages are found further within `exts_list`, they will will be treated as
 duplicates and removed.  If you are running easy update for the first time I would 
 suggest that you run it twice to ensure that the modules are in the correct order. 
 
+### Update notes November 2020
+easy_update will look for eb and search easyconfigs from EasyBuild. The primary search path will based on the path of the earyconfig being updated.
+
 ### Update Notes March 2019
 *Easy_Update* now supports PythonPackage and RPackage easyconfigs. *Easy_Update* will read exts_list from
 R and Python easyconfig listed in the depencies of the R or Python package. Only the package name will
 be verifed from the dependent language. Version information will be updated for the priamry EasyConfig 
-R or Python easyconfig that is specified. *Easy_Update* does not search EB paths all easyconfig files
-specified must be local. The --add feature has been removed.
+R or Python easyconfig that is specified. The --add feature has been removed.
 
 ### Usage
 easy_update takes a single argument which is the path to an easyconfig file. The output is written to a new file;
@@ -27,8 +29,8 @@ with the extension ".update".
   <dd><b>Output:</b> Python-2.7.12-foss-2016b.update</dd>
 </dl>
 
-**Note:** When using BioConductor modules in easyconfig files the variable ``biocver`` must be set, otherwise
-BioConductor will not be searched. **Example** ``biocver = 3.6``.
+**Note:** When using BioConductor modules in easyconfig files the variable ``local_biocver`` must be set, otherwise
+BioConductor will not be searched. **Example** ``local_biocver = 3.11``.
 
 ### Flags
 
@@ -38,19 +40,6 @@ BioConductor will not be searched. **Example** ``biocver = 3.6``.
     'update' there is a new version available for the package
     'dep' A new package will be added as the result of finding dependencies
     'duplicate'  A duplicate package name has been found
-
-* **--search** [modulename] Search is used to lookup a single module as an argument.  Search does not read or write to a file. Dependencies will be output if found. This is handy for checking new packages.
-Search requires the command line arguments; --pyver or --rver and --biocver to determine which repository to search.
-
-* **--meta** Display metadata available from the repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
-
-* **--Meta** Use with --search only. Output package metadata and exit.
-
-* **--tree** For use with --search option, output inverted dependancy tree for a package.
- 
-* **--pyver**  Only use in conjunction with search.  Specify only the major minor version numbers; --pyver 3.6.
-
-* **--rver, --biocver** Only use in conjunction with search.  Specify only the major minor version numbers
 
 ### Python Notes
 Making sense of Pypi metadata can be problematic. 
@@ -85,10 +74,23 @@ defined outside of the `ext_list` declaration.
     ('BiocGenerics', '0.24.0'),
 ```
 
-### Examples
- * [Examples](Examples.md)
-
 ### TODO
 Integrate with EasyBuild FrameWork. Version two of EasyUpdate has been refactored to 
 seperate core update features from framework features. The new refactoring should 
 make integration easier.
+
+Nov 2020
+Meta search features have been removed from easy_update. In a future relase they will be supported by a different application: meta_search.py.  All these flags are removed from easy_update
+
+* **--search** [modulename] Search is used to lookup a single module as an argument.  Search does not read or write to a file. Dependencies will be output if found. This is handy for checking new packages.
+Search requires the command line arguments; --pyver or --rver and --biocver to determine which repository to search.
+
+* **--meta** Display metadata available from the repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
+
+* **--Meta** Use with --search only. Output package metadata and exit.
+
+* **--tree** For use with --search option, output inverted dependancy tree for a package.
+ 
+* **--pyver**  Only use in conjunction with search.  Specify only the major minor version numbers; --pyver 3.6.
+
+* **--rver, --biocver** Only use in conjunction with search.  Specify only the major minor version numbers

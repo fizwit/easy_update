@@ -73,9 +73,15 @@ class UpdateExts:
         """
         """
         self.verbose = args.verbose
-        self.debug = False 
-        self.meta = args.meta
-        self.search_pkg = args.search_pkg
+        self.debug = False
+        try: 
+            self.meta = args.meta
+        except AttributeError:
+            self.meta = None
+        try:
+            self.search_pkg = args.search_pkg
+        except AttributeError:
+            self.search_pkg = None
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
