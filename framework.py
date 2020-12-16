@@ -9,7 +9,10 @@ import types
 import requests
 import logging
 
-""" 1.0.2 Nov 21, 2020
+""" 1.0.3 Dec 16, 2020 (Beethoven's 250th birthday)
+    R does not have an easyblock, so don't check for one.
+
+    1.0.2 Nov 21, 2020
     Fix issue with not being able to read Python dependancies for minimal toolchain.
     Python-3.7.3-foss-2019b.eb should be Python-3.7.4-GCCcore-8.3.0.eb
 
@@ -40,7 +43,7 @@ import logging
     Read exts_list for R and Python listed in dependencies.
 """
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'Nov 21, 2020'
 
@@ -157,16 +160,16 @@ class FrameWork:
         if eb.name == 'Python':
             self.lang = str(eb.name)
             self.interpolate['pyver'] = eb.version
-        if eb.easyblock == 'PythonPackage' or eb.easyblock == 'PythonBundle':
-            self.lang = 'Python'
-        if eb.name == 'R':
+        elif eb.name == 'R':
             self.lang = str(eb.name)
             self.interpolate['rver'] = eb.version
-        if eb.easyblock == 'RPackage':
+        elif eb.easyblock == 'PythonPackage' or eb.easyblock == 'PythonBundle':
+            self.lang = 'Python'
+        elif eb.easyblock == 'RPackage':
             self.lang = 'R'
-        if self.defaultclass:
+        elif self.defaultclass:
             self.lang = eb.exts_defaultclass.replace('Package', '')
-        if self.lang is None:
+        else:
             logging.warn('can not determin either R or Python?')
 
     def find_easyconfig_paths(self, filename):
@@ -214,6 +217,7 @@ class FrameWork:
         py_minimal_map = [
             ['foss-2019a', 'GCCcore-8.2.0'],
             ['foss-2019b', 'GCCcore-8.3.0'],
+            ['foss-2019b', 'GCC-8.3.0'],
             ['foss-2020a', 'GCCcore-9.3.0'],
             ['foss-2020b', 'GCCcore-10.2.0'],
             ['foss-2020a', 'gompi-2020a'],
