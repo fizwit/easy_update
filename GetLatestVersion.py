@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import re
-import urllib2.request
+from urllib3 import request
 from html.parser import HTMLParser
 # sys.version_info >= (2, 6)
 
@@ -79,7 +79,7 @@ class PythonParser(HTMLParser):
             self.latest = False
 
 p = PythonParser()
-f = urllib.request.urlopen("https://python.org")
+f = request.urlopen("https://python.org")
 html = str(f.read())
 p.feed(html)
 print("Latest: %s" % p.Python2version)
@@ -87,7 +87,7 @@ print("Latest: %s"  %p.Python3version)
 p.close()
 
 r = RParser()
-f = urllib.request.urlopen('https://www.r-project.org/')
+f = request.urlopen('https://www.r-project.org/')
 html = str(f.read())
 r.feed(html)
 print("Latest: %s" % r.RversionSting)

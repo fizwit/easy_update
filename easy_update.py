@@ -14,7 +14,10 @@ if sys.version_info < (3,):
     sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
     sys.exit(1)
 
-# from pprint import pprint
+__version__ = '2.1.1'
+__date__ = 'Januray 6, 2021'
+__maintainer__ = 'John Dey jfdey@fredhutch.org'
+
 
 """
 EasyUpdate performs package version updating for EasyBuild
@@ -25,6 +28,8 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.1 Jan 6, 2021 - clean up requirements.txt with pigar
+
 2.1.0 Nov 22, 2020 - Major changes to framework. See framework.py for more details.
 
 2.0.8.10 July 29 minor bug fixes
@@ -127,10 +132,6 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Project API:  GET /pypi/<project_name>/json
   Release API: GET /pypi/<project_name>/<version>/json
 """
-
-__version__ = '2.1.0'
-__date__ = 'November 22, 2020'
-__maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
 class UpdateR(UpdateExts):
