@@ -72,7 +72,7 @@ class FrameWork:
         logging.debug("EB search path: {}".format(self.base_path))
 
         # update EasyConfig exts_list
-        
+
         eb = self.parse_eb(args.easyconfig, primary=True)
         self.exts_list = eb.exts_list
         self.toolchain = eb.toolchain
@@ -94,7 +94,6 @@ class FrameWork:
             self.versionsuffix = eb.versionsuffix % self.interpolate
         except AttributeError:
             self.versionsuffix = ""
-        
 
         self.modulename = eb.name + '-' + eb.version
         self.modulename += '-' + eb.toolchain['name']
@@ -131,6 +130,8 @@ class FrameWork:
                    'source/%(nameletter)s/%(name)s"\n')
         header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
                    '%(namelower)s"\n')
+        header += ("OS_PKG_OPENSSL_DEV = (('openssl-devel', 'libssl-dev', 'libopenssl-devel'),\n" +
+                   '                      "OS packages providing openSSL developement support")\n')
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:

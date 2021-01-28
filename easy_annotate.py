@@ -36,7 +36,7 @@ each package to its project page.
 """
 
 __author__ = "John Dey"
-__version__ = "2.0.3"
+__version__ = "2.1.2"
 __date__ = "Aug 15, 2019"
 __email__ = "jfdey@fredhutch.org"
 

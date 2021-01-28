@@ -9,12 +9,11 @@ from framework import FrameWork
 from updateexts import UpdateExts
 from packaging.markers import Marker, UndefinedEnvironmentName
 
-# only works with Python 3 (due to use of isidentifier for example)
 if sys.version_info < (3,):
     sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
     sys.exit(1)
 
-__version__ = '2.1.1'
+__version__ = '2.1.2'
 __date__ = 'Januray 6, 2021'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
@@ -28,6 +27,7 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.2 Jan 28, 2021 - support constant OS_PKG_OPENSSL_DEV
 2.1.1 Jan 6, 2021 - clean up requirements.txt with pigar
 
 2.1.0 Nov 22, 2020 - Major changes to framework. See framework.py for more details.
