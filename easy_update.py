@@ -13,7 +13,7 @@ if sys.version_info < (3,):
     sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
     sys.exit(1)
 
-__version__ = '2.1.2'
+__version__ = '2.1.3'
 __date__ = 'Januray 6, 2021'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
@@ -27,6 +27,9 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.3 Feb 3, 2021 - bug Fix
+      AttributeError: 'FrameWork' object has no attribute 'base_path'
+
 2.1.2 Jan 28, 2021 - support constant OS_PKG_OPENSSL_DEV
 2.1.1 Jan 6, 2021 - clean up requirements.txt with pigar
 

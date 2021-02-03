@@ -174,12 +174,13 @@ class FrameWork:
             logging.warn('can not determin either R or Python?')
 
     def find_easyconfig_paths(self, filename):
-        """find the paths to EasyConfigs, search within the path given by the esayconfig
+        """find the paths to EasyConfigs, search within the path given by the easyconfig
         given to update. Search for eb command
         """
         userPath = os.path.expanduser(filename)
         fullPath = os.path.abspath(userPath)
         (head, tail) = os.path.split(fullPath)
+        self.base_path = None
         while tail:
             if 'easyconfig' in tail:
                 self.base_path = os.path.join(head, tail)
@@ -189,7 +190,10 @@ class FrameWork:
         if eb_path:
             logging.debug('EB path: {}'.format(eb_path))
             ec_path = eb_path.replace('bin/eb', 'easybuild/easyconfigs')
-            self.base_path += ':' + ec_path
+            if self.base_path:
+                self.base_path += ':' + ec_path
+            else:
+                self.base_path = ec_path
         else:
             sys.stderr.writelines('Could not fine path to EasyBuild, EasyBuild module must be loaded')
             sys.exit(1)
