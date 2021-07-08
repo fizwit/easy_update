@@ -13,8 +13,8 @@ if sys.version_info < (3,):
     sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
     sys.exit(1)
 
-__version__ = '2.1.3'
-__date__ = 'Januray 6, 2021'
+__version__ = '2.1.4'
+__date__ = 'May 20, 2021'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -27,6 +27,8 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.4 May 20, 2021 - remove requirment for local_biocver. Issue a warning if local_biocver is
+                     not set.
 2.1.3 Feb 3, 2021 - bug Fix
       AttributeError: 'FrameWork' object has no attribute 'base_path'
 
@@ -152,7 +154,7 @@ class UpdateR(UpdateExts):
         if eb.biocver:
             self.read_bioconductor_packages(eb.biocver)
         else:
-            print('WARNING: BioCondutor version is not set; local_biocver ')
+            print('WARNING: BioCondutor local_biocver is not defined. BioConductor will not be searched')
         self.updateexts()
         if not self.search_pkg:
             eb.print_update('R', self.exts_processed)

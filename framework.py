@@ -109,8 +109,7 @@ class FrameWork:
             try:
                 self.biocver = eb.local_biocver
             except AttributeError:
-                logging.warn('WARNING: BioCondutor version is not set in easyconfig; local_biocver ')
-                sys.exit(1)
+                self.biocver = None
         self.check_eb_package_name(args.easyconfig)
         self.out = open(args.easyconfig[:-3] + ".update", 'w')
 
@@ -288,7 +287,7 @@ class FrameWork:
                         break
             if easyconfig:
                 if self.verbose:
-                    print('reading dependency: {}'.format(os.path.basename(easyconfig)))
+                    print('== reading extensions from: {}'.format(os.path.basename(easyconfig)))
                 eb = self.parse_eb(str(easyconfig), False)
                 try:
                     self.dep_exts.extend(eb.exts_list)
