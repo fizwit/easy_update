@@ -56,6 +56,8 @@ class FrameWork:
         print_update()
     """
     def __init__(self, args):
+        if args.debug:
+            logging.basicConfig(level=logging.DEBUG)
         self.verbose = args.verbose
         self.code = None
         self.pyver = None
@@ -131,6 +133,8 @@ class FrameWork:
                    '%(namelower)s"\n')
         header += ("OS_PKG_OPENSSL_DEV = (('openssl-devel', 'libssl-dev', 'libopenssl-devel'),\n" +
                    '                      "OS packages providing openSSL developement support")\n')
+        header += 'SOURCE_WHL = "%(name)s-%(version)s-py2.py3-none-any.whl"\n'
+        header += 'SOURCE_PY3_WHL = "%(name)s-%(version)s-py3-none-any.whl"\n'
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
@@ -183,11 +187,12 @@ class FrameWork:
         while tail:
             if 'easyconfig' in tail:
                 self.base_path = os.path.join(head, tail)
-                break
+                logging.debug('path to easyconfigs: {}'.format(self.base_path))
+                return
             (head, tail) = os.path.split(head)
         eb_path = shutil.which("eb")
         if eb_path:
-            logging.debug('EB path: {}'.format(eb_path))
+            logging.debug('EB binary path: {}'.format(eb_path))
             ec_path = eb_path.replace('bin/eb', 'easybuild/easyconfigs')
             if self.base_path:
                 self.base_path += ':' + ec_path

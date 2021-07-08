@@ -27,6 +27,9 @@ current version for each package.
 """
 
 """ Release Notes
+2.1.5 July 8, 2021 - fix bug in find_easyconfig_paths 
+   Add additonal headers 'SOURCE_WHL',  'SOURCE_PY3_WHL'; from caspar@SURFsara
+
 2.1.4 May 20, 2021 - remove requirment for local_biocver. Issue a warning if local_biocver is
                      not set.
 2.1.3 Feb 3, 2021 - bug Fix
@@ -145,7 +148,7 @@ class UpdateR(UpdateExts):
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
         print('processing: {}'.format(eb.name))
-        self.debug = False
+        self.debug = args.debug 
         self.bioc_data = {}
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
                                'grDevices', 'grid', 'methods', 'parallel',
@@ -276,7 +279,7 @@ class UpdatePython(UpdateExts):
     """
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
-        self.debug = False
+        self.debug = args.debug
         self.pkg_dict = None
         self.not_found = 'not found'
         if eb.name == 'Python':
@@ -455,6 +458,8 @@ def main():
     parser.add_argument(
         '-v', '--verbose', dest='verbose', required=False, action='store_true',
         help='Verbose; print lots of extra stuff, (default: false)')
+    parser.add_argument('--debug', dest='debug', required=False, action='store_true',
+        help='set log level to debug, (default: false)')
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 
