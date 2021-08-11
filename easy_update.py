@@ -13,8 +13,8 @@ if sys.version_info < (3,):
     sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
     sys.exit(1)
 
-__version__ = '2.1.4'
-__date__ = 'May 20, 2021'
+__version__ = '2.2.0'
+__date__ = 'Aug 11, 2021'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -27,6 +27,10 @@ current version for each package.
 """
 
 """ Release Notes
+2.2.0 Aug 11, 2020 - Dig deep to find all dependent Python libraries. Every dependency needs to be check
+ to determine if it contains Python modules. Inspect every dependency for PythonBundle or PythonPackage,
+ easyblock type.
+
 2.1.5 July 8, 2021 - fix bug in find_easyconfig_paths 
    Add additonal headers 'SOURCE_WHL',  'SOURCE_PY3_WHL'; from caspar@SURFsara
 

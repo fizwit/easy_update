@@ -249,6 +249,9 @@ def main():
     parser.add_argument(
         '-v', '--verbose', dest='verbose', required=False, action='store_true',
         help='Verbose; print lots of extra stuff, (default: false)')
+    parser.add_argument(
+        '--debug', dest='debug', required=False, action='store_true',
+        help='Debug add debug messages to stderr (default: false)')
     parser.add_argument('easyconfig', nargs='?')
     args = parser.parse_args()
 

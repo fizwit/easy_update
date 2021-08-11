@@ -26,7 +26,7 @@ import logging
     add logging.debug()
 
     1.0.1 Aug, 15, 2019
-    fix parse_dependencies
+    fix search_dependencies
     For the case of reading Python dependancies, conver the
     case of 'Biopython-1.74-foss-2016b-Python-3.7.4'
     Search dependcies for versionsuffix == '-Python-%(pyver)s'
@@ -47,7 +47,8 @@ __version__ = '1.0.3'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'Nov 21, 2020'
 
-logging.basicConfig(level=logging.WARN)
+logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
+    level=logging.WARN)
 
 class FrameWork:
     """provide access to EasyBuild Config file variables
@@ -57,7 +58,8 @@ class FrameWork:
     """
     def __init__(self, args):
         if args.debug:
-            logging.basicConfig(level=logging.DEBUG)
+            logging.getLogger().setLevel(logging.DEBUG)
+            logging.debug('debug enabled')
         self.verbose = args.verbose
         self.code = None
         self.pyver = None
@@ -71,7 +73,7 @@ class FrameWork:
         self.dep_exts = []
 
         self.find_easyconfig_paths(args.easyconfig)
-        logging.debug("EB search path: {}".format(self.base_path))
+        logging.debug("EasyConfig search paths: {}".format(self.base_paths))
 
         # update EasyConfig exts_list
 
@@ -89,9 +91,7 @@ class FrameWork:
         except AttributeError:
             self.defaultclass = None
         self.detect_language(eb)
-        if not self.lang:
-            logging.debug('Wow language is unknown!')
-        self.parse_dependencies(eb, self.lang)
+        self.search_dependencies(eb, self.lang)
         try:
             self.versionsuffix = eb.versionsuffix % self.interpolate
         except AttributeError:
@@ -174,7 +174,7 @@ class FrameWork:
         elif self.defaultclass:
             self.lang = eb.exts_defaultclass.replace('Package', '')
         else:
-            logging.warn('can not determin either R or Python?')
+            logging.warn('Can not determine languge of module. R or Python?')
 
     def find_easyconfig_paths(self, filename):
         """find the paths to EasyConfigs, search within the path given by the easyconfig
@@ -183,32 +183,27 @@ class FrameWork:
         userPath = os.path.expanduser(filename)
         fullPath = os.path.abspath(userPath)
         (head, tail) = os.path.split(fullPath)
-        self.base_path = None
+        self.base_paths = []
         while tail:
             if 'easyconfig' in tail:
-                self.base_path = os.path.join(head, tail)
-                logging.debug('path to easyconfigs: {}'.format(self.base_path))
-                return
+                self.base_paths.append(os.path.join(head, tail))
+                logging.debug('local path to easyconfigs: {}'.format(self.base_paths[-1]))
+                break 
             (head, tail) = os.path.split(head)
-        eb_path = shutil.which("eb")
+        eb_path = os.getenv('EBROOTEASYBUILD') 
         if eb_path:
-            logging.debug('EB binary path: {}'.format(eb_path))
-            ec_path = eb_path.replace('bin/eb', 'easybuild/easyconfigs')
-            if self.base_path:
-                self.base_path += ':' + ec_path
-            else:
-                self.base_path = ec_path
+            self.base_paths.append(os.path.join(eb_path, 'easybuild/easyconfigs'))
         else:
             sys.stderr.writelines('Could not fine path to EasyBuild, EasyBuild module must be loaded')
             sys.exit(1)
 
 
     def find_easyconfig(self, name, easyconfigs):
-        """ search base_path for easyconfig filename """
+        """ search base_paths for easyconfig filename """
         found = None
         first_letter = easyconfigs[0][0].lower()
-        for easyconfig in easyconfigs:          
-            for ec_dir in self.base_path.split(':'):
+        for easyconfig in easyconfigs:
+            for ec_dir in self.base_paths:
                 narrow = ec_dir + '/' + first_letter + '/' + name
                 logging.debug('find_easyconfig: search for {} in {} '.format(easyconfig, narrow))
                 for r,d,f in os.walk(narrow):
@@ -258,8 +253,8 @@ class FrameWork:
         logging.debug('build_dep_filename {}'.format(dep_filenames))
         return dep_filenames
 
- 
-    def parse_dependencies(self, eb, lang):
+
+    def search_dependencies(self, eb, lang):
         """ inspect dependencies for R and Python easyconfigs,
         if found add the exts_list to the list of dependent
         exts  <dep_exts>
@@ -269,35 +264,33 @@ class FrameWork:
         except NameError:
             return None
         for dep in dependencies:
-            easyconfig = None
-            if dep[0] in ['R', 'Python']:
-                if dep[0] == 'Python':
-                    self.interpolate['pyver'] = dep[1]
-                    self.pyver = dep[1]
-                    logging.debug('primary language Python {}'.format(self.pyver))
-                if dep[0] == 'R':
-                    self.interpolate['rver'] = dep[1]
-                    self.rver = dep[1]
-                    logging.debug('primary language R-{}'.format(self.rver))
-                dep_filenames = self.build_dep_filename(eb, dep)
-                logging.debug('language file: {}'.format(dep_filenames))
+            if self.pyver is None and dep[0] == 'Python':
+                self.interpolate['pyver'] = dep[1]
+                self.pyver = dep[1]
+                logging.debug('primary language Python {}'.format(self.pyver))
+            if self.rver is None and dep[0] == 'R':
+                self.interpolate['rver'] = dep[1]
+                self.rver = dep[1]
+                logging.debug('primary language R-{}'.format(self.rver))
+            dep_filenames = self.build_dep_filename(eb, dep)
+            logging.debug('dependency file names: {}'.format(dep_filenames))
+            easyconfig = self.find_easyconfig(dep[0], dep_filenames)
+            for dep_filename in dep_filenames:
                 easyconfig = self.find_easyconfig(dep[0], dep_filenames)
-            else:
-                dep_filenames = self.build_dep_filename(eb, dep)
-                for dep_filename in dep_filenames:
-                    if 'R-' == dep_filename[0:2] or '-R-' in dep_filename or (
-                        'Python-' == dep_filename[0:6] or '-Python-' in dep_filename):
-                        logging.debug('deubug - language dependencie: {}'.format(dep_filename))
-                        easyconfig = self.find_easyconfig(dep[0], dep_filenames)
-                        break
-            if easyconfig:
-                if self.verbose:
-                    print('== reading extensions from: {}'.format(os.path.basename(easyconfig)))
-                eb = self.parse_eb(str(easyconfig), False)
-                try:
-                    self.dep_exts.extend(eb.exts_list)
-                except (AttributeError, NameError):
-                    self.dep_exts.extend([dep])
+                if easyconfig:
+                    if self.verbose:
+                        print('== reading extensions from: {}'.format(os.path.basename(easyconfig)))
+                    eb = self.parse_eb(str(easyconfig), False)
+                    if hasattr(eb, 'easyblock') and eb.easyblock in ['PythonBundle', 'PythonPackage']:
+                        self.dep_exts.extend([eb.name, eb.version])
+                        print('== adding {}'.format(eb.name))
+                    try:
+                        self.dep_exts.extend(eb.exts_list)
+                    except (AttributeError, NameError):
+                        self.dep_exts.extend([dep])
+                    break
+                else:
+                    print('== Not Found: {}'.format(dep_filename))
 
 
     def parse_python_deps(self, eb):
