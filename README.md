@@ -41,6 +41,17 @@ BioConductor will not be searched. **Example** ``local_biocver = 3.11``.
     'dep' A new package will be added as the result of finding dependencies
     'duplicate'  A duplicate package name has been found
 
+Verbose output explains why new dependencies are being added. Updating **breakaway**
+required adding **phyloseq**, which required **bioformat**.
+```
+                      pbs : 1.1                             (keep) [444, 316]
+                   RLRsim : 3.1-6 -> 3.1-8                (update) [444, 317]
+                   refund : 0.1-24                          (keep) [444, 318]
+               biomformat : 1.22.0 from phyloseq             (add) [444, 319]
+                 phyloseq : 1.38.0 from breakaway            (add) [444, 320]
+                breakaway : 3.0 -> 4.7.9                  (update) [444, 321]
+```
+
 ### Python Notes
 Making sense of Pypi metadata can be problematic. 
 https://dustingram.com/articles/2018/03/05/why-pypi-doesnt-know-dependencies/

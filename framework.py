@@ -127,6 +127,7 @@ class FrameWork:
         header += 'SOURCELOWER_TAR_XZ = "%(namelower)s-%(version)s.tar.xz"\n'
         header += 'SHLIB_EXT = ".so"\n'
         header += 'GITHUB_SOURCE = "https://github.com/%(github_account)s/%(name)s"\n'
+        header += 'GITHUB_LOWER_SOURCE = "https://github.com/%(github_account)s/%(namelower)s"\n'
         header += ('PYPI_SOURCE = "https://pypi.python.org/packages/' +
                    'source/%(nameletter)s/%(name)s"\n')
         header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
@@ -135,6 +136,7 @@ class FrameWork:
                    '                      "OS packages providing openSSL developement support")\n')
         header += 'SOURCE_WHL = "%(name)s-%(version)s-py2.py3-none-any.whl"\n'
         header += 'SOURCE_PY3_WHL = "%(name)s-%(version)s-py3-none-any.whl"\n'
+        header += 'SYSTEM = {"name": "system", "version": "system"}\n'
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
@@ -194,8 +196,9 @@ class FrameWork:
         if eb_path:
             self.base_paths.append(os.path.join(eb_path, 'easybuild/easyconfigs'))
         else:
-            sys.stderr.writelines('Could not fine path to EasyBuild, EasyBuild module must be loaded')
+            sys.stderr.writelines('Could not find path to EasyBuild, EasyBuild module must be loaded')
             sys.exit(1)
+        logging.debug('easyconfig search paths: {}'.format(eb_path))
 
 
     def find_easyconfig(self, name, easyconfigs):
@@ -215,42 +218,34 @@ class FrameWork:
 
 
     def build_dep_filename(self, eb, dep):
-        """build a filename from a dependencie object. Hack minimal toolchain support
-        for Python.  foss-2019 -> GCCcore-8.3.0
+        """build a list of possible filenames from a dependency object.
+           This is a Hack for minimal toolchain support
+           Only supports foss toolchains 
         """
-        py_minimal_map = [
-            ['foss-2019a', 'GCCcore-8.2.0'],
-            ['foss-2019b', 'GCCcore-8.3.0'],
-            ['foss-2019b', 'GCC-8.3.0'],
-            ['foss-2020a', 'GCCcore-9.3.0'],
-            ['foss-2020b', 'GCCcore-10.2.0'],
-            ['foss-2020a', 'gompi-2020a'],
-            ['fosscuda-2019a', 'GCCcore-8.2.0'],
-            ['fosscuda-2019b', 'GCCcore-8.3.0'],
-            ['fosscuda-2020a', 'GCCcore-9.3.0'],
-            ['fosscuda-2020b', 'GCCcore-10.2.0'],
+        toolchains = [
+            ['fosscuda-2019a', 'foss-2019a', 'GCCcore-8.2.0'],
+            ['fosscuda-2019b', 'foss-2019b', 'GCCcore-8.3.0'],
+            ['fosscuda-2020a', 'foss-2020a', 'GCCcore-9.3.0', 'GCC-9.3.0', 'gompi-2020a'],
+            ['fosscuda-2020b', 'foss-2020b', 'GCCcore-10.2.0', 'GCC-10.2.0', 'gompi-2020b'],
+            ['fosscuda-2021a', 'foss-2021a', 'GCCcore-10.3.0', 'GCC-10.3.0', 'gompi-2021a'],
+            ['fosscuda-2021b', 'foss-2021b', 'GCCcore-11.2.0', 'GCC-11.2.0', 'gompi-2021b'],
         ]
-        primary_toolchain = '{}-{}'.format(self.toolchain['name'],self.toolchain['version'])
-        toolchains = [primary_toolchain]
-        if self.lang and self.lang == 'Python':
-            for map in py_minimal_map:
-                if map[0] == primary_toolchain:
-                    toolchains.append(map[1])
-            logging.debug('Python Toolchains: {}'.format(toolchains))
-        dep_filenames = list()
-        for toolchain in toolchains:
-            dep_filename = '{}-{}'.format(dep[0], dep[1])
-            if len(dep) == 4:
-                dep_filename += dep[2]
-            if len(dep) == 2:
-               dep_filename += '-{}'.format(toolchain)
-            if len(dep) == 3:
-                dep_filename += '-{}'.format(toolchain)
-                versionsuffix = dep[2] % self.interpolate
-                dep_filename += '{}'.format(versionsuffix)
-            dep_filename += '.eb'
-            dep_filenames.append(dep_filename)
-        logging.debug('build_dep_filename {}'.format(dep_filenames))
+        tc_versions = {
+            '8.2.0': toolchains[0], '2019a': toolchains[0],
+            '8.3.0': toolchains[1], '2019b': toolchains[1],
+            '9.3.0': toolchains[2], '2020a': toolchains[2],
+            '10.2.0': toolchains[3], '2020b': toolchains[3],
+            '10.3.0': toolchains[4], '2021a': toolchains[4],
+            '11.2.0': toolchains[5], '2021b': toolchains[5],
+        }
+        prefix = dep[0] + '-' + dep[1]
+        tc_version = self.toolchain['version']
+        if tc_version not in tc_versions:
+            sys.stderr.writelines('Could not figure out what toolchain you are using.')
+            sys.exit(1)
+        dep_filenames = []
+        for tc in tc_versions[tc_version]:
+            names.append('{}-{}.eb'.format(prefix, tc)) 
         return dep_filenames
 
 
