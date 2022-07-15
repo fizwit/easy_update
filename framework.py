@@ -245,7 +245,7 @@ class FrameWork:
             sys.exit(1)
         dep_filenames = []
         for tc in tc_versions[tc_version]:
-            names.append('{}-{}.eb'.format(prefix, tc)) 
+            dep_filenames.append('{}-{}.eb'.format(prefix, tc)) 
         return dep_filenames
 
 
