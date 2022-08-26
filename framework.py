@@ -137,6 +137,7 @@ class FrameWork:
         header += 'SOURCE_WHL = "%(name)s-%(version)s-py2.py3-none-any.whl"\n'
         header += 'SOURCE_PY3_WHL = "%(name)s-%(version)s-py3-none-any.whl"\n'
         header += 'SYSTEM = {"name": "system", "version": "system"}\n'
+        header += 'GNU_SAVANNAH_SOURCE = "https://download-mirror.savannah.gnu.org/releases/%(namelower)s"\n'
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
@@ -147,7 +148,7 @@ class FrameWork:
         try:
             exec (header + code, eb.__dict__)
         except Exception as err:
-            logging.debug("interperting EasyConfig error: %s" % err)
+            logging.error("interperting EasyConfig error: %s" % err)
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
@@ -187,7 +188,7 @@ class FrameWork:
         (head, tail) = os.path.split(fullPath)
         self.base_paths = []
         while tail:
-            if 'easyconfig' in tail:
+            if 'easyconfigs' in tail:
                 self.base_paths.append(os.path.join(head, tail))
                 logging.debug('local path to easyconfigs: {}'.format(self.base_paths[-1]))
                 break 
@@ -277,8 +278,8 @@ class FrameWork:
                         print('== reading extensions from: {}'.format(os.path.basename(easyconfig)))
                     eb = self.parse_eb(str(easyconfig), False)
                     if hasattr(eb, 'easyblock') and eb.easyblock in ['PythonBundle', 'PythonPackage']:
-                        self.dep_exts.extend([eb.name, eb.version])
-                        print('== adding {}'.format(eb.name))
+                        self.dep_exts.extend([(eb.name, eb.version, 'Module')])
+                        print('== adding {} {}'.format(eb.name, eb.version))
                     try:
                         self.dep_exts.extend(eb.exts_list)
                     except (AttributeError, NameError):
@@ -286,18 +287,8 @@ class FrameWork:
                     break
                 else:
                     print('== Not Found: {}'.format(dep_filename))
+        print(self.dep_exts)
 
-
-    def parse_python_deps(self, eb):
-        """ Python EasyConfigs can have other Python packages in the
-        dependancy field. check 3rd element for -Python-%(pyver)s"
-        """
-        try:
-            dependencies = eb.dependencies
-        except NameError:
-            return None
-        for dep in eb.dependencies:
-            pass
 
     def check_eb_package_name(self, filename):
         """" check that easybuild filename matches package name

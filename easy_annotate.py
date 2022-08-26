@@ -15,6 +15,8 @@ each package to its project page.
 """
 
 """ Release Notes
+    2.1.3  report missing directives as error and not debug.
+           annotate python modules names
     2.0.4  python.get_package_url -convert to requests
     Python 3.x updates pkgs.keys()  change to list(pkgs)
 
@@ -36,8 +38,8 @@ each package to its project page.
 """
 
 __author__ = "John Dey"
-__version__ = "2.1.2"
-__date__ = "Aug 15, 2019"
+__version__ = "2.1.3"
+__date__ = "Aug 26, 2022"
 __email__ = "jfdey@fredhutch.org"
 
 
@@ -93,7 +95,11 @@ class ExtsList(object):
             if isinstance(pkg, tuple):
                 pkg_name = pkg[0]
                 version = str(pkg[1])
-                url, description = self.get_package_url(pkg_name)
+                if 'Module' in pkg:
+                    url = 'not found'
+                    description = 'Module'
+                else:
+                    url, description = self.get_package_url(pkg_name)
                 if self.verbose:
                     print('{}'.format(pkg_name))
             else:
@@ -108,7 +114,9 @@ class ExtsList(object):
         pkg_list.sort()
         for key in pkg_list:
             if pkg_info[key]['url'] == 'not found':
-                self.out.write('  * %s %s\n' % (key, pkg_info[key]['version']))
+                self.out.write('  * %s %s %s\n' % (key,
+                                                   pkg_info[key]['version'],
+                                                   pkg_info[key]['description']))
             else:
                 msg = '  * [%s-%s](%s) %s\n' % (key,
                                                 pkg_info[key]['version'],
