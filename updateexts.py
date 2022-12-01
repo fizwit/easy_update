@@ -74,7 +74,7 @@ class UpdateExts:
         """
         self.verbose = args.verbose
         self.debug = False
-        try: 
+        try:
             self.meta = args.meta
         except AttributeError:
             self.meta = None
@@ -94,41 +94,18 @@ class UpdateExts:
         self.depend_exclude = list()
         self.exts_processed = list()
 
-        if eb and eb.dep_exts:
-            for exten in eb.dep_exts:
-                if isinstance(exten, tuple):
-                    if len(exten) == 3 and 'modulename' in exten[2]:
-                        self.dep_exts.append(exten[2]['modulename'])
-                    else:
-                        self.dep_exts.append(exten[0])
+        for exten in eb.dep_exts:
+            if isinstance(exten, tuple):
+                if len(exten) > 2 and 'modulename' in exten[2] and exten[2]['modulename']:
+                    name = exten[2]['modulename']
                 else:
-                    self.dep_exts.append(exten)
-        if args.easyconfig:
-            self.exts_orig = eb.exts_list
-            self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
+                    name = exten[0]
+            else:
+                name = exten
+            self.dep_exts.append(name)
+        self.exts_orig = eb.exts_list
+        self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                                 'version': eb.version}
-        if self.search_pkg:
-            if args.biocver:
-                self.biocver = args.biocver
-            if args.pyver:
-                self.version = args.pyver
-            elif args.rver:
-                self.version = args.rver
-            self.sea_pkg = {'name': args.search_pkg,
-                            'version': '',
-                            'from': None,
-                            'level': 0,
-                            'meta': {}}
-            # move exts from easyconfig into processed list
-            if args.easyconfig:
-                for ext in self.exts_orig:
-                    if isinstance(ext, tuple):
-                        name = ext[0] % self.interpolate
-                        version = ext[1] % self.interpolate
-                        pkg = {'name': name, 'version': version}
-                        self.processed(pkg)
-                    else:
-                        self.processed({'name': ext, 'from': 'base'})
 
     def is_processed(self, pkg):
         """ check if package has been previously processed
@@ -138,7 +115,7 @@ class UpdateExts:
         """
         name = pkg['name']
         found = False
-        if name in self.dep_exts:
+        if name.casefold() in (ext.casefold() for ext in self.dep_exts):
             found = True
         elif name in self.checking:
             found = True
@@ -210,7 +187,7 @@ class UpdateExts:
         check that all dependencies are meet for each package.
         check_package can be called recursively.
         pkg['from'] is used to track recursion.
-          - None module is from source file 
+          - None module is from source file
           - not None:  Name of package that depends from
         pkg['action'] What action will be take to exts_list.
           - 'add'; new package
@@ -220,13 +197,13 @@ class UpdateExts:
           - 'remove' not compatible, wrong OS, not supported version
         """
         if self.debug:
-            sys.stderr.write('check_package: %s\n' % pkg['name'])
+            sys.stderr.write('check_package: {} from: {}\n'.format(pkg['name'], pkg['from']))
         if self.is_processed(pkg):
             return
         self.checking.append(pkg['name'])
         status = self.get_package_info(pkg)
         if status in ["error", 'not found']:
-            if pkg['from'] is None: 
+            if pkg['from'] is None:
                 pkg['action'] = 'keep'
                 self.processed(pkg)
                 return
@@ -235,7 +212,7 @@ class UpdateExts:
                 print(msg.format(pkg['name'],pkg['from']))
                 return
         if status == 'remove':
-            msg = " removing {} " 
+            msg = " removing {} "
             pkg['action'] = 'remove'
             self.processed(pkg)
             print(msg.format(pkg['name']))
@@ -253,6 +230,9 @@ class UpdateExts:
             if pkg['from'] is None:
                 pkg['action'] = 'update'
                 self.pkg_update += 1
+                if len(pkg) == 3:
+                    if 'checksums' in pkg[2]:
+                        del pkd[2]['checksums']
             else:
                 if self.debug:
                     print('check_package - add {} from {}'.format(pkg['name'],pkg['from']))
@@ -284,26 +264,24 @@ class UpdateExts:
         """Loop through exts_list and check which packages need to be updated.
         this is an external method for the class
         """
-        if self.search_pkg:
-            self.check_package(self.sea_pkg)
-        else:
-            self.ext_list_len = len(self.exts_orig)
-            for ext in self.exts_orig:
-                self.ext_counter += 1
-                if isinstance(ext, tuple):
-                    name = ext[0] % self.interpolate
-                    version = ext[1] % self.interpolate
-                    pkg = {'name': name, 'version': version,
-                           'from': None, 
-                           'level': 0, 'meta': {}}
-                    if len(ext) > 2:
-                        pkg['spec'] = ext[2]
-                    pkg['meta'] = {}
-                    self.check_package(pkg)
-                else:
-                    self.processed({'name': ext, 'from': 'base'})
-            if self.verbose:
-                self.stats()
+        self.ext_list_len = len(self.exts_orig)
+        print("how many are there? {}".format(self.ext_list_len))
+        for ext in self.exts_orig:
+            self.ext_counter += 1
+            if isinstance(ext, tuple):
+                name = ext[0] % self.interpolate
+                version = ext[1] % self.interpolate
+                pkg = {'name': name, 'version': version,
+                       'from': None,
+                       'level': 0, 'meta': {}}
+                if len(ext) > 2:
+                    pkg['spec'] = ext[2]
+                pkg['meta'] = {}
+                self.check_package(pkg)
+            else:
+                self.processed({'name': ext, 'from': 'base'})
+        if self.verbose:
+            self.stats()
 
     def stats(self):
         sys.stderr.write("Updated Packages: %d\n" % self.pkg_update)

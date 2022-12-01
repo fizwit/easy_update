@@ -8,8 +8,17 @@ import argparse
 import types
 import requests
 import logging
+from templates import TEMPLATE_CONSTANTS
+from constants import EASYCONFIG_CONSTANTS
 
-""" 1.0.3 Dec 16, 2020 (Beethoven's 250th birthday)
+""" 1.0.4 Nov, 2022
+    - no long try to guess the language by reading the EasyConfig. Lang must
+      be speicified as a command line argument.
+    - remove "detect_language"
+    - only call "framework" if an EasyConfig needs updating
+    - use "templates.py" from EasyBuild Framework
+
+    1.0.3 Dec 16, 2020 (Beethoven's 250th birthday)
     R does not have an easyblock, so don't check for one.
 
     1.0.2 Nov 21, 2020
@@ -43,9 +52,9 @@ import logging
     Read exts_list for R and Python listed in dependencies.
 """
 
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Nov 21, 2020'
+__date__ = 'Nov 2, 2022'
 
 logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
     level=logging.WARN)
@@ -56,28 +65,29 @@ class FrameWork:
     methods:
         print_update()
     """
-    def __init__(self, args):
+    def __init__(self, args, easyconfig, lang):
         if args.debug:
             logging.getLogger().setLevel(logging.DEBUG)
             logging.debug('debug enabled')
+        self.easyconfig = easyconfig
+        self.lang = lang
         self.verbose = args.verbose
         self.code = None
         self.pyver = None
         self.rver = None
         self.search_pkg = None
-        self.lang = None
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ptr_head = 0
         self.modulename = None
         self.dep_exts = []
 
-        self.find_easyconfig_paths(args.easyconfig)
+        self.find_easyconfig_paths(easyconfig)
         logging.debug("EasyConfig search paths: {}".format(self.base_paths))
 
         # update EasyConfig exts_list
 
-        eb = self.parse_eb(args.easyconfig, primary=True)
+        eb = self.parse_eb(easyconfig, primary=True)
         self.exts_list = eb.exts_list
         self.toolchain = eb.toolchain
         self.name = eb.name
@@ -90,8 +100,7 @@ class FrameWork:
             self.defaultclass = eb.exts_defaultclass
         except AttributeError:
             self.defaultclass = None
-        self.detect_language(eb)
-        self.search_dependencies(eb, self.lang)
+        self.search_dependencies(eb)
         try:
             self.versionsuffix = eb.versionsuffix % self.interpolate
         except AttributeError:
@@ -107,46 +116,32 @@ class FrameWork:
             self.dependencies = eb.dependencies
         except AttributeError:
             logging.warn('WARNING: no dependencies defined!')
-        if self.lang == 'R':
-            try:
-                self.biocver = eb.local_biocver
-            except AttributeError:
-                self.biocver = None
-        self.check_eb_package_name(args.easyconfig)
-        self.out = open(args.easyconfig[:-3] + ".update", 'w')
+        try:
+            self.biocver = eb.local_biocver
+        except AttributeError:
+            self.biocver = None
+        self.check_eb_package_name(easyconfig)
+        self.out = open(easyconfig[:-3] + ".update", 'w')
 
     def parse_eb(self, file_name, primary):
         """ interpret EasyConfig file with 'exec'.  Interperting fails if
         constants that are not defined within the EasyConfig file.  Add
-        undefined constants to <header>.
+        undefined constants to <header>. Copy templates.py from EasyBuild
         """
-        header = 'SOURCE_TGZ  = "%(name)s-%(version)s.tgz"\n'
-        header += 'SOURCE_TAR_GZ = "%(name)s-%(version)s.tar.gz"\n'
-        header += 'SOURCELOWER_TAR_GZ = "%(namelower)s-%(version)s.tar.gz"\n'
-        header += 'SOURCELOWER_TAR_BZ2 = "%(namelower)s-%(version)s.tar.bz2"\n'
-        header += 'SOURCELOWER_TAR_XZ = "%(namelower)s-%(version)s.tar.xz"\n'
-        header += 'SHLIB_EXT = ".so"\n'
-        header += 'GITHUB_SOURCE = "https://github.com/%(github_account)s/%(name)s"\n'
-        header += 'GITHUB_LOWER_SOURCE = "https://github.com/%(github_account)s/%(namelower)s"\n'
-        header += ('PYPI_SOURCE = "https://pypi.python.org/packages/' +
-                   'source/%(nameletter)s/%(name)s"\n')
-        header += ('SOURCEFORGE_SOURCE = "https://download.sourceforge.net/' +
-                   '%(namelower)s"\n')
-        header += ("OS_PKG_OPENSSL_DEV = (('openssl-devel', 'libssl-dev', 'libopenssl-devel'),\n" +
-                   '                      "OS packages providing openSSL developement support")\n')
-        header += 'SOURCE_WHL = "%(name)s-%(version)s-py2.py3-none-any.whl"\n'
-        header += 'SOURCE_PY3_WHL = "%(name)s-%(version)s-py3-none-any.whl"\n'
-        header += 'SYSTEM = {"name": "system", "version": "system"}\n'
-        header += 'GNU_SAVANNAH_SOURCE = "https://download-mirror.savannah.gnu.org/releases/%(namelower)s"\n'
+        header = ''
+        for constant in TEMPLATE_CONSTANTS:
+            header += '{} = "{}"\n'.format(constant[0], constant[1])
+        for constant in EASYCONFIG_CONSTANTS:
+            header += '{} = "{}"\n'.format(constant, EASYCONFIG_CONSTANTS[constant][1])
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
                 code = f.read()
         except IOError as err:
-            logging.debug("opening %s: %s" % (file_name, err))
+            logging.debug("Error reading %s: %s" % (file_name, err))
             sys.exit(1)
         try:
-            exec (header + code, eb.__dict__)
+            exec(header + code, eb.__dict__)
         except Exception as err:
             logging.error("interperting EasyConfig error: %s" % err)
             sys.exit(1)
@@ -160,24 +155,6 @@ class FrameWork:
 
         return eb
 
-    def detect_language(self, eb):
-        """ R or Python? EasyConfig parameters: easyblock or name
-        Test Case: CNVkit
-        """
-        if eb.name == 'Python':
-            self.lang = str(eb.name)
-            self.interpolate['pyver'] = eb.version
-        elif eb.name == 'R':
-            self.lang = str(eb.name)
-            self.interpolate['rver'] = eb.version
-        elif eb.easyblock == 'PythonPackage' or eb.easyblock == 'PythonBundle':
-            self.lang = 'Python'
-        elif eb.easyblock == 'RPackage':
-            self.lang = 'R'
-        elif self.defaultclass:
-            self.lang = eb.exts_defaultclass.replace('Package', '')
-        else:
-            logging.warn('Can not determine languge of module. R or Python?')
 
     def find_easyconfig_paths(self, filename):
         """find the paths to EasyConfigs, search within the path given by the easyconfig
@@ -246,11 +223,11 @@ class FrameWork:
             sys.exit(1)
         dep_filenames = []
         for tc in tc_versions[tc_version]:
-            dep_filenames.append('{}-{}.eb'.format(prefix, tc)) 
+            dep_filenames.append('{}-{}.eb'.format(prefix, tc))
         return dep_filenames
 
 
-    def search_dependencies(self, eb, lang):
+    def search_dependencies(self, eb):
         """ inspect dependencies for R and Python easyconfigs,
         if found add the exts_list to the list of dependent
         exts  <dep_exts>
@@ -260,34 +237,30 @@ class FrameWork:
         except NameError:
             return None
         for dep in dependencies:
-            if self.pyver is None and dep[0] == 'Python':
+            if self.lang == 'Python' and self.pyver is None and dep[0] == 'Python':
                 self.interpolate['pyver'] = dep[1]
                 self.pyver = dep[1]
-                logging.debug('primary language Python {}'.format(self.pyver))
-            if self.rver is None and dep[0] == 'R':
+            if self.lang == 'R' and self.rver is None and dep[0] == 'R':
                 self.interpolate['rver'] = dep[1]
                 self.rver = dep[1]
-                logging.debug('primary language R-{}'.format(self.rver))
             dep_filenames = self.build_dep_filename(eb, dep)
-            logging.debug('dependency file names: {}'.format(dep_filenames))
-            easyconfig = self.find_easyconfig(dep[0], dep_filenames)
-            for dep_filename in dep_filenames:
-                easyconfig = self.find_easyconfig(dep[0], dep_filenames)
-                if easyconfig:
-                    if self.verbose:
-                        print('== reading extensions from: {}'.format(os.path.basename(easyconfig)))
-                    eb = self.parse_eb(str(easyconfig), False)
-                    if hasattr(eb, 'easyblock') and eb.easyblock in ['PythonBundle', 'PythonPackage']:
-                        self.dep_exts.extend([(eb.name, eb.version, 'Module')])
-                        print('== adding {} {}'.format(eb.name, eb.version))
-                    try:
-                        self.dep_exts.extend(eb.exts_list)
-                    except (AttributeError, NameError):
-                        self.dep_exts.extend([dep])
-                    break
-                else:
-                    print('== Not Found: {}'.format(dep_filename))
-        print(self.dep_exts)
+            logging.debug('dependency file name: {}'.format(dep_filenames))
+            easyconfig_filename = self.find_easyconfig(dep[0], dep_filenames)
+            if not easyconfig_filename:
+                print('== dependency Not Found: {}'.format(easyconfig_filename))
+                continue
+            if self.verbose:
+                print('== reading dependcy: {}'.format(os.path.basename(easyconfig_filename)))
+            dep_eb = self.parse_eb(str(easyconfig_filename), False)
+            # Histroicly easyblock PythonPackage does not have an exts_list
+            # The filename is the name of the Python Library
+            if hasattr(dep_eb, 'easyblock') and dep_eb.easyblock == 'PythonBundle':
+                self.dep_exts.extend([(dep_eb.name, dep_eb.version, 'Module')])
+                logging.debug('== adding dep {} {}'.format(dep_eb.name, dep_eb.version))
+            if 'exts_list' in dep_eb.__dict__:
+                self.dep_exts.extend(dep_eb.exts_list)
+                if self.verbose:
+                    print('== adding dependices: {}'.format(os.path.basename(easyconfig_filename)))
 
 
     def check_eb_package_name(self, filename):

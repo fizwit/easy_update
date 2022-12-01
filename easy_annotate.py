@@ -55,10 +55,10 @@ class ExtsList(object):
         self.verbose = verbose
         self.pkg_count = 0
 
-        try:
-            self.extension = eb.dep_exts
-        except NameError:
-            self.extension = []
+        #try:
+        #    self.extension = eb.dep_exts
+        #except NameError:
+        self.extension = []
         self.extension.extend(eb.exts_list)
         self.biocver = None
         self.toolchain = eb.toolchain
@@ -135,9 +135,9 @@ class R(ExtsList):
                       'tools', 'tcltk', 'grid', 'splines'
                       }
 
-    def __init__(self, eb, verbose):
+    def __init__(self, eb, args):
         self.debug = False
-        self.verbose = verbose
+        verbose = args.verbose
         self.biocver = None
         self.bioc_data = {}
         self.bioc_urls = []
@@ -260,22 +260,15 @@ def main():
     parser.add_argument(
         '--debug', dest='debug', required=False, action='store_true',
         help='Debug add debug messages to stderr (default: false)')
-    parser.add_argument('easyconfig', nargs='?')
+    parser.add_argument('--R', type=str, metavar='R-Easyconfig', dest='r_eb',
+        help='Annotate R extentions')
     args = parser.parse_args()
 
     eb = None
     args.lang = None
-    if args.easyconfig:
-        eb = FrameWork(args)
-        args.lang = eb.lang
-        if eb.lang == 'Python':
-            args.pyver = eb.pyver
-        if eb.lang == 'R':
-            args.rver = eb.rver
-    if args.lang == 'R':
-        R(eb, args.verbose)
-    elif args.lang == 'Python':
-        PythonExts(eb, args.verbose)
+    if args.r_eb:
+        eb = FrameWork(args,  args.r_eb, 'R')
+        R(eb, args)
     else:
         print('easyanotate does not know how to process: {}'.format(eb.name))
 

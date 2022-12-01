@@ -3,6 +3,7 @@
 import re
 import os
 import sys
+import json
 import argparse
 import requests
 from framework import FrameWork
@@ -27,6 +28,10 @@ current version for each package.
 """
 
 """ Release Notes
+2.2.1 Sept 2021 Explicitly request type of update via cli flags:  --update_python_exts, --update_R_exts 
+    remove detect_language() from framework
+    Pillow ~= pillow
+
 2.2.0 Aug 11, 2020 - Dig deep to find all dependent Python libraries. Every dependency needs to be check
  to determine if it contains Python modules. Inspect every dependency for PythonBundle or PythonPackage,
  easyblock type.
@@ -152,7 +157,7 @@ class UpdateR(UpdateExts):
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
         print('processing: {}'.format(eb.name))
-        self.debug = args.debug 
+        self.debug = args.debug
         self.bioc_data = {}
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
                                'grDevices', 'grid', 'methods', 'parallel',
@@ -284,28 +289,36 @@ class UpdatePython(UpdateExts):
     def __init__(self, args, eb):
         UpdateExts.__init__(self, args, eb)
         self.debug = args.debug
+        self.meta = args.pypimeta
         self.pkg_dict = None
         self.not_found = 'not found'
-        if eb.name == 'Python':
-            (nums) = eb.version.split('.')
-        else:
-            (nums) = eb.pyver.split('.')
+        (nums) = eb.pyver.split('.')
         self.python_version = "%s.%s" % (nums[0], nums[1])
         # Python >3.3 has additional built in modules
         self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
                                 'functools32', 'enum34', 'future', 'configparser']
         self.updateexts()
-        if not self.search_pkg:
-            eb.print_update('Python', self.exts_processed)
+        eb.print_update('Python', self.exts_processed)
+
+    def get_pypi_project(self, pkg):
+        """ Python PyPi project
+        ['info']['classifiers']: 'audience', 'Topic'
+        """
+        req = 'https://pypi.org/pypi/%s/json' % pkg['name']
+        resp = requests.get(req)
+        if resp.status_code != 200:
+            sys.stderr.write('{} not in PyPi'.format(pkg['name']))
+            return 'not found'
+        project = resp.json()
+        if self.meta:
+            self.print_meta(project)
+        return project
 
     def get_pypi_pkg_data(self, pkg, version=None):
         """
         return meta data from PyPi.org)
         """
-        if version:
-            req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
-        else:
-            req = 'https://pypi.org/pypi/%s/json' % pkg['name']
+        req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
         resp = requests.get(req)
         if resp.status_code != 200:
             msg = "API error: %s GET release %s\n"
@@ -338,20 +351,20 @@ class UpdatePython(UpdateExts):
         else:
             return response['info']['name']
 
-    def print_meta(self, meta):
+    def print_meta(self, project):
         """ print 'info' dict from pypi.org
 
         """
-        if self.meta:
-            for key in meta:
-                if key == 'description':
-                    print("%s: %s" % (key, meta[key][1:60]))
-                elif key == 'requires_dist':
-                    print('%s:' % 'requires_dist')
-                    for req in meta[key]:
-                        print("   %s" % req)
-                else:
-                    print("%s: %s" % (key, meta[key]))
+        if 'info' in project:
+            info = project['info']
+        else:
+            return
+        print("{}: {}".format(info['name'], info['version']))
+        for key in info:
+            if key == 'description':
+                print("    %s: %s" % (key, info[key][1:60]))
+            else:
+                print('    {}: {}'.format(key, json.dumps(info[key], indent=4)))
 
     def pypi_requires_dist(self, name, requires):
         """ process the requires_dist from Pypi. remove packages that do not match the os
@@ -422,7 +435,7 @@ class UpdatePython(UpdateExts):
         """get version information from pypi.  If <pkg_name> is not processed
         seach pypi. pkg_name is now case sensitive and must match
         """
-        project = self.get_pypi_pkg_data(pkg)
+        project = self.get_pypi_project(pkg)
         if project == 'not found':
             return 'not found'
         pkg['meta'].update(project['info'])
@@ -432,9 +445,6 @@ class UpdatePython(UpdateExts):
         if 'requires_dist' in project['info']:
             requires = project['info']['requires_dist']
             pkg['meta']['requires'] = self.pypi_requires_dist(pkg['name'], requires)
-        if self.meta:
-            self.print_meta(project['info'])
-            sys.exit(0)
         return status
 
     def output_module(self, pkg):
@@ -455,27 +465,31 @@ class UpdatePython(UpdateExts):
 
 def main():
     """ main """
-    parser = argparse.ArgumentParser(description='Update EasyConfig extslist')
+    parser = argparse.ArgumentParser(description='Update EasyConfig exts_list')
 
     parser.add_argument('--version', action='version',
                         version='%(prog)s ' + __version__ + '  ' + __date__)
     parser.add_argument(
         '-v', '--verbose', dest='verbose', required=False, action='store_true',
         help='Verbose; print lots of extra stuff, (default: false)')
-    parser.add_argument('--debug', dest='debug', required=False, action='store_true',
+    parser.add_argument('--debug', required=False, action='store_true',
         help='set log level to debug, (default: false)')
-    parser.add_argument('easyconfig', nargs='?')
+    parser.add_argument('--pypi_meta', dest='pypimeta', action='store_true', required=False,
+        help='Output PyPi metadata for module')
+    parser.add_argument('--update-R-exts', type=str, metavar='R-Easyconfig', dest='r_eb',
+        help='Update R extentions')
+    parser.add_argument('--update-python-exts', type=str, metavar='Python-EasyConfig', dest='python_eb',
+        help='Update Python extentions')
     args = parser.parse_args()
 
-    if args.easyconfig:
-        eb = FrameWork(args)
-        if eb.lang == 'R':
-            UpdateR(args, eb)
-        elif eb.lang == 'Python':
-            UpdatePython(args, eb)
-    else:
-        print('error: No EasyConfig speicified')
-        sys.exit(1)
+    if args.r_eb:
+        print('R EasyConfig file: {}'.format(args.r_eb))
+        eb = FrameWork(args, args.r_eb, 'R')
+        UpdateR(args, eb)
+    elif args.python_eb:
+        print('filename: {}'.format(args.python_eb))
+        eb = FrameWork(args, args.python_eb, 'Python')
+        UpdatePython(args, eb)
 
 
 if __name__ == '__main__':
