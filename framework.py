@@ -95,7 +95,8 @@ class FrameWork:
         self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                             'version': eb.version,
                             'pyver': None,
-                            'rver': None}
+                            'rver': None,
+                            'cudaver': ""}
         try:
             self.defaultclass = eb.exts_defaultclass
         except AttributeError:
@@ -206,7 +207,8 @@ class FrameWork:
             ['fosscuda-2020a', 'foss-2020a', 'GCCcore-9.3.0', 'GCC-9.3.0', 'gompi-2020a'],
             ['fosscuda-2020b', 'foss-2020b', 'GCCcore-10.2.0', 'GCC-10.2.0', 'gompi-2020b'],
             ['fosscuda-2021a', 'foss-2021a', 'GCCcore-10.3.0', 'GCC-10.3.0', 'gompi-2021a'],
-            ['fosscuda-2021b', 'foss-2021b', 'GCCcore-11.2.0', 'GCC-11.2.0', 'gompi-2021b'],
+            ['foss-2021b', 'GCCcore-11.2.0', 'GCC-11.2.0', 'gompi-2021b'],
+            ['foss-2022b', 'GCCcore-12.2.0', 'GCC-12.2.0', 'gompi-2022b'],
         ]
         tc_versions = {
             '8.2.0': toolchains[0], '2019a': toolchains[0],
@@ -247,7 +249,7 @@ class FrameWork:
             logging.debug('dependency file name: {}'.format(dep_filenames))
             easyconfig_filename = self.find_easyconfig(dep[0], dep_filenames)
             if not easyconfig_filename:
-                print('== dependency Not Found: {}'.format(easyconfig_filename))
+                print('== dependency Not Found: {}'.format(dep_filenames[0]))
                 continue
             if self.verbose:
                 print('== reading dependcy: {}'.format(os.path.basename(easyconfig_filename)))

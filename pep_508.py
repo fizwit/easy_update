@@ -16,7 +16,7 @@ class PEP_508():
     marker = "keepalive (>=0.5); extra == 'keepalive'"
     output: ('keepalive', [], [('>=', '0.5')], ('==', 'all', 'keepalive'))
     """
-    def __init__(self):
+    def __init__(self, pyver):
 
 
         """platform_release, platform_system, implementation_name, and implementation_version
@@ -24,12 +24,8 @@ class PEP_508():
            those implementations.
            **Assume** cpython if "implementation_name" is not defined 
         """
-        if hasattr(sys, 'implementation'):
-            implementation_version = self.format_full_version(sys.implementation.version)
-            implementation_name = sys.implementation.name
-        else:
-            implementation_version = '0'
-            implementation_name = 'cpython'
+        implementation_name = 'cpython'
+        version = pyver
 
         self.bindings = {
             'extra': 'all',
@@ -41,7 +37,7 @@ class PEP_508():
             'platform_release': platform.release(),
             'platform_system': platform.system(),
             'platform_version': platform.version(),
-            'python_full_version': platform.python_version(),
+            'python_full_version': pyver, 
             'python_version': '.'.join(platform.python_version_tuple()[:2]),
             'sys_platform': sys.platform,
         }
@@ -173,6 +169,11 @@ hexdig        = digit | 'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' | 'e' | 'E
 
 if __name__ == '__main__':
     tests = [
+        "Python==3",
+        "python==3.6",
+        "python==3.7",
+        "python==3.8",
+        "python==3.9",
         "A",
         "A.B-C_D",
         "aa",
@@ -195,7 +196,7 @@ if __name__ == '__main__':
         "keepalive (>=0.5); extra == 'keepalive'"
         ]
 
-    pep_508 = PEP_508()
+    pep_508 = PEP_508(pyver='3.9.6')
 
     for test in tests:
         print('Parsing: {}'.format(test))
