@@ -10,3 +10,5 @@
 !pep_508.py
 Debug
 Notes
+pyvenv.cfg
+lib/
