@@ -209,6 +209,7 @@ class FrameWork:
             ['fosscuda-2021a', 'foss-2021a', 'GCCcore-10.3.0', 'GCC-10.3.0', 'gompi-2021a'],
             ['foss-2021b', 'GCCcore-11.2.0', 'GCC-11.2.0', 'gompi-2021b'],
             ['foss-2022b', 'GCCcore-12.2.0', 'GCC-12.2.0', 'gompi-2022b', 'gfbf-2022b'],
+            ['foss-2023a', 'GCCcore-12.3.0', 'GCC-12.3.0', 'gompi-2023a', 'gfbf-2023a'],
         ]
         tc_versions = {
             '8.2.0': toolchains[0], '2019a': toolchains[0],
@@ -217,6 +218,8 @@ class FrameWork:
             '10.2.0': toolchains[3], '2020b': toolchains[3],
             '10.3.0': toolchains[4], '2021a': toolchains[4],
             '11.2.0': toolchains[5], '2021b': toolchains[5],
+            '12.2.0': toolchains[6], '2022b': toolchains[6],
+            '12.3.0': toolchains[7], '2023a': toolchains[7],
         }
         prefix = dep[0] + '-' + dep[1]
         tc_version = self.toolchain['version']
