@@ -12,4 +12,9 @@
 !templates.py
 Debug
 Notes
+<<<<<<< HEAD
 minimal-toolchains
+=======
+pyvenv.cfg
+lib/
+>>>>>>> a8bc9ec82265935a5d0fe2d001f427767666c4b2
