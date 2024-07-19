@@ -1,21 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import re
-import os
 import sys
 import json
 import argparse
 import requests
 from framework import FrameWork
 from updateexts import UpdateExts
-from packaging.markers import Marker, UndefinedEnvironmentName
+from pep508 import Pep508
+from pep508_parser import parser
 
-if sys.version_info < (3,):
-    sys.stderr.write("ERROR: Python 3 required, found %s\n" % sys.version.split(' ')[0])
-    sys.exit(1)
-
-__version__ = '2.2.0'
-__date__ = 'Aug 11, 2021'
+__version__ = '2.2.2'
+__date__ = 'June 27, 2024'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -27,16 +23,34 @@ is updated for modules in exts_list. Use language specific APIs for resolving
 current version for each package.
 """
 
-""" Release Notes
-2.2.1 Sept 2021 Explicitly request type of update via cli flags:  --update_python_exts, --update_R_exts 
+""" 
+
+2.2.2 refactor pypi_requires_dist to use pep508 pareser.  This will allow for much more
+    reliable parsing of package dependencies.  The pep508 parser is used to evaluate the
+    output of the parser.
+
+    pkg['meta']['requires'] is a list of lists.  The first element is the package name
+    and the second element is the type of dependency.  This is used to track where the
+    package was requested from.  This is useful when updating packages.  The package
+    name is used to search for the package in the exts_list.  The type of dependency
+    is used to determine if the package is a 'Depends', 'Imports', or 'LinkingTo' type.
+
+    Command line flags have changed to use '--exts-' as a prefix. The use of '--update' is
+    over used. Need to explicitly request the type of update; --exts-update-r or --exts-update-python
+    this might change again after integrating the EB framework.
+
+    Updating Python is still very broken.  Should update to use pyproject.toml. 
+
+2.2.1 Sept 2021 Explicitly request type of update via cli flags:  --update_python_exts, --update_R_exts
     remove detect_language() from framework
     Pillow ~= pillow
+    Was only implemented for R, and the Python side was broken. 
 
 2.2.0 Aug 11, 2020 - Dig deep to find all dependent Python libraries. Every dependency needs to be check
  to determine if it contains Python modules. Inspect every dependency for PythonBundle or PythonPackage,
  easyblock type.
 
-2.1.5 July 8, 2021 - fix bug in find_easyconfig_paths 
+2.1.5 July 8, 2021 - fix bug in find_easyconfig_paths
    Add additonal headers 'SOURCE_WHL',  'SOURCE_PY3_WHL'; from caspar@SURFsara
 
 2.1.4 May 20, 2021 - remove requirment for local_biocver. Issue a warning if local_biocver is
@@ -152,23 +166,31 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
 
 
 class UpdateR(UpdateExts):
-    """extend UpdateExts class to update package names from CRAN and BioCondutor
+    """extend UpdateExts class to update package names from CRAN and Biocondutor
     """
     def __init__(self, args, eb):
-        UpdateExts.__init__(self, args, eb)
-        print('processing: {}'.format(eb.name))
+        self.verbose = args.verbose
         self.debug = args.debug
+        self.exts_search_cran = args.exts_search_cran
+
         self.bioc_data = {}
+        self.dotGraph = {}
+        self.name = eb.name
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
                                'grDevices', 'grid', 'methods', 'parallel',
                                'splines', 'stats', 'stats4', 'tcltk', 'tools',
                                'utils', ]
+        self.dep_types = ['Imports', 'Depends', 'LinkingTo']
         if eb.biocver:
             self.read_bioconductor_packages(eb.biocver)
         else:
-            print('WARNING: BioCondutor local_biocver is not defined. BioConductor will not be searched')
-        self.updateexts()
-        if not self.search_pkg:
+            print('WARNING: BioCondutor local_biocver is not defined. Bioconductor will not be searched')
+        if args.exts_description_r or args.exts_search_cran:
+            self.exts_description(eb.exts_list)
+            self.printDotGraph()
+        else:
+            UpdateExts.__init__(self, args, eb, 'R')
+            self.updateexts()
             eb.print_update('R', self.exts_processed)
 
     def read_bioconductor_packages(self, biocver):
@@ -197,51 +219,43 @@ class UpdateR(UpdateExts):
         if resp.status_code != 200:
             return "not found"
         cran_info = resp.json()
-        pkg['meta']['info'] = cran_info
-        if self.meta:
+        pkg['info'] = cran_info
+        if self.exts_search_cran:
             self.print_meta(cran_info)
         pkg['meta']['version'] = cran_info['Version']
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
             return 'base package'
         pkg['meta']['requires'] = []
-        if u"LinkingTo" in cran_info:
-            pkg['meta']['requires'].extend(cran_info[u"LinkingTo"].keys())
-        if u"Depends" in cran_info:
-            pkg['meta']['requires'].extend(cran_info[u"Depends"].keys())
-        if u"Imports" in cran_info:
-            pkg['meta']['requires'].extend(cran_info[u"Imports"].keys())
+        for dep_type in self.dep_types:
+            if dep_type in cran_info:
+                for pkg_name in cran_info[dep_type].keys():
+                    if pkg_name not in self.depend_exclude:
+                        pkg['meta']['requires'].append([pkg_name, dep_type])
         return 'ok'
 
     def get_bioc_info(self, pkg):
-        """Extract <Depends> and <Imports> from BioCondutor json metadata
+        """Extract Dependencies from BioCondutor json metadata
         Example:
         bioc_data['pkg']['Depends']
                     [u'R (>= 2.10)', u'BiocGenerics (>= 0.3.2)', u'utils']
         interesting fields from BioCoductor:
-        bioc_data['pkg']['Depends', 'Imports', 'Biobase', 'graphics', 'URL']
+        bioc_data['pkg']['Depends', 'Imports', 'LinkingTo', 'Biobase', 'graphics', 'URL']
         """
         status = 'ok'
         if pkg['name'] in self.bioc_data:
             pkg['meta']['version'] = self.bioc_data[pkg['name']]['Version']
-            if 'LinkingTo' in self.bioc_data[pkg['name']]:
-                pkg['meta']['requires'].extend(
-                    [re.split('[ (><=,]', s)[0]
-                     for s in self.bioc_data[pkg['name']]['LinkingTo']])
-            if 'Depends' in self.bioc_data[pkg['name']]:
-                pkg['meta']['requires'].extend(
-                    [re.split('[ (><=,]', s)[0]
-                     for s in self.bioc_data[pkg['name']]['Depends']])
-            if 'Imports' in self.bioc_data[pkg['name']]:
-                pkg['meta']['requires'].extend(
-                    [re.split('[ (><=,]', s)[0]
-                     for s in self.bioc_data[pkg['name']]['Imports']])
+            for dep_type in self.dep_types:
+                if dep_type in self.bioc_data[pkg['name']]:
+                    dep_list = [re.split('[ (><=,]', s)[0] for s in self.bioc_data[pkg['name']][dep_type]]
+                    for dep in dep_list:
+                        pkg['meta']['requires'].append([dep, dep_type])
         else:
             status = "not found"
         return status
 
     def print_depends(self, pkg):
         """ used for debugging """
-        for p in pkg['meta']['requires']:
+        for p, method in pkg['meta']['requires']:
             if p not in self.depend_exclude:
                 print("%20s : requires %s" % (pkg['name'], p))
 
@@ -271,10 +285,44 @@ class UpdateR(UpdateExts):
                 print("%s: %s" % (tag, meta[tag]))
 
     def output_module(self, pkg):
-       return "%s('%s', '%s')," % (self.indent, pkg['name'], pkg['version'])
+        return "%s('%s', '%s')," % (self.indent, pkg['name'], pkg['version'])
 
     def is_not_used(self):
         pass
+
+    def exts_description(self, exts_list):
+        """ print library description from CRAN
+            CRAN "Description" is multiline,
+            build DOT type dependancy list
+        """
+        ext_list_len = len(exts_list)
+        ext_counter = 1
+        for ext in exts_list:
+            if isinstance(ext, tuple):
+                pkg = {'name': ext[0], 'version': ext[1], 'meta': {}}
+            else:
+                continue
+            status = self.get_package_info(pkg)
+            counter = '[{}, {}]'.format(ext_list_len, ext_counter)
+            if status == "not found":
+                ext_description = 'Package Not Found in CRAN'
+                print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
+            else:
+                ext_description = pkg['info']['Title']
+                print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
+                self.dotGraph[str(pkg['name'])] = pkg
+            ext_counter += 1
+
+    def printDotGraph(self):
+        print("digraph {} {{".format(self.name))
+        print('{};'.format(self.name))
+        for p in self.dotGraph.keys():
+            print('"{}";'.format(p))
+        for p in self.dotGraph.keys():
+            print('"{}" -> "{}";'.format(self.name, p))
+            for dep, method in self.dotGraph[p]['meta']['requires']:
+                print('"{}" -> "{}";'.format(p, dep))
+        print("}")
 
 
 class UpdatePython(UpdateExts):
@@ -287,18 +335,25 @@ class UpdatePython(UpdateExts):
          project: liac-arff, module: arff,  file name: liac_arff.zip
     """
     def __init__(self, args, eb):
-        UpdateExts.__init__(self, args, eb)
         self.debug = args.debug
-        self.meta = args.pypimeta
         self.pkg_dict = None
-        self.not_found = 'not found'
-        (nums) = eb.pyver.split('.')
-        self.python_version = "%s.%s" % (nums[0], nums[1])
-        # Python >3.3 has additional built in modules
-        self.depend_exclude += ['argparse', 'asyncio', 'typing', 'sys'
-                                'functools32', 'enum34', 'future', 'configparser']
-        self.updateexts()
-        eb.print_update('Python', self.exts_processed)
+        self.dep_types = ['requires_dist']
+        self.python_version = None
+        self.pep508 = Pep508()
+        
+        if args.exts_search_pypi:
+            self.exts_search_pypi = args.exts_search_pypi
+            self.get_pypi_project({'name': args.exts_search_pypi, 'version': ""})
+        else:
+            self.exts_search_pypi = None
+            (nums) = eb.pyver.split('.')
+            self.python_version = "%s.%s" % (nums[0], nums[1])
+            UpdateExts.__init__(self, args, eb, 'Python')
+            # Python >3.3 has additional built in modules
+            self.depend_exclude = ['argparse', 'asyncio', 'typing', 'sys'
+                                   'functools32', 'enum34', 'future', 'configparser']
+            self.updateexts()
+            eb.print_update('Python', self.exts_processed)
 
     def get_pypi_project(self, pkg):
         """ Python PyPi project
@@ -310,7 +365,7 @@ class UpdatePython(UpdateExts):
             sys.stderr.write('{} not in PyPi'.format(pkg['name']))
             return 'not found'
         project = resp.json()
-        if self.meta:
+        if self.exts_search_pypi:
             self.print_meta(project)
         return project
 
@@ -367,41 +422,22 @@ class UpdatePython(UpdateExts):
                 print('    {}: {}'.format(key, json.dumps(info[key], indent=4)))
 
     def pypi_requires_dist(self, name, requires):
-        """ process the requires_dist from Pypi. remove packages that do not match the os
-        and Python release. Return the edited list of dependancies. Format of output
-        is a single list with only the package names.
-
-        Note: the project name can be different from the 'package' name.
-
-        Only add deps where "extra" == 'deps' or 'all'
-        requires_dist: <name> <version>[; Environment Markers]
-
-        use Marker from packaging to evaluate Markers.
-        https://github.com/pypa/packaging/blob/master/docs/markers.rst
-
-        EasyUpdate always installs the latest version of pakcages, so ignore
-        version information for packages.
-        input: 'numpy (>=1.7.1)'  output: 'numpy'
+        """ process the requires_dist from Pypi. The requires_dist is a list. Evaluate each item
+            with pep508_evaluator.  If the item is True, add the package name to the list of dependencies.
         """
         if requires is None:
             return []
         depends_on = []
-        envs = ({'python_version': self.python_version, 'extra': 'deps'},
-                {'python_version': self.python_version, 'extra': 'all'},
-                {'python_version': self.python_version, 'extra': 'tests'},
-                {'python_version': self.python_version, 'extra': 'doc'},
-                {'python_version': self.python_version, 'extra': 'examples'},
-                )
+        if self.debug:
+            print(f' == {name} requires: {requires}', file=sys.stderr)
         for require in requires:
-            pkg_name = re.split('[ ><=!;(]', require)[0]
-            #print('checking: {}'.format(pkg_name))
-            if self.is_processed(pkg={'name': pkg_name, 'from': name, 'type': 'dep'}):
+            try:
+                parsed = parser.parse(require)
+            except Exception:
+                print(f' ** {name} Invaild PEP 508 Requires: {require}', file=sys.stderr)
                 continue
-            # check for Markers and process
-            markers = require.split(';')
-            if len(markers) > 1 and 'extra' in markers[1]:
-                continue
-            if pkg_name not in depends_on:
+            pkg_name = parsed[0]
+            if self.pep508.eval_508(parsed) and pkg_name not in depends_on:
                 depends_on.append(pkg_name)
         return depends_on
 
@@ -409,7 +445,7 @@ class UpdatePython(UpdateExts):
         """if source dist is not available from pypi search
         the release for a wheel file.
         """
-        status = self.not_found
+        status = 'not found'
         if 'version' in pkg['meta']:
             version = pkg['meta']['version']
         else:
@@ -422,7 +458,7 @@ class UpdatePython(UpdateExts):
                 break
         # one last try to find package release data
         if status != 'ok':
-            cplist = ['cp35', 'cp36', 'cp37']
+            cplist = ['cp36', 'cp37', 'cp38', 'cp39']
             for rel in project['releases'][version]:
                 if any(cver in rel['python_version'] for cver in cplist):
                     if 'manylinux' in rel['filename']:
@@ -441,10 +477,12 @@ class UpdatePython(UpdateExts):
         pkg['meta'].update(project['info'])
         # new_version = pkg['meta']['version']
         status = self.get_pypi_release(pkg, project)
-
+        pkg['meta']['requires'] = []
         if 'requires_dist' in project['info']:
             requires = project['info']['requires_dist']
-            pkg['meta']['requires'] = self.pypi_requires_dist(pkg['name'], requires)
+            dep_list = self.pypi_requires_dist(pkg['name'], requires)
+            for dep in dep_list:
+                pkg['meta']['requires'].append([dep, 'requires'])
         return status
 
     def output_module(self, pkg):
@@ -462,34 +500,52 @@ class UpdatePython(UpdateExts):
             output = self.indent + "('{}', '{}'),".format(pkg['name'], pkg['version'])
         return output
 
+    def exts_description(self, exts_list):
+        """ Print library description from PyPi metadata for each extsion in exts_list """
+        ext_list_len = len(exts_list)
+        ext_counter = 1
+        for ext in exts_list:
+            if isinstance(ext, tuple):
+                pkg = {'name': ext[0], 'version': ext[1], 'meta': {}}
+            else:
+                continue
+            status = self.get_package_info(pkg)
+            ext_description = pkg['meta']['summary']
+            counter = '[{}, {}]'.format(ext_list_len, ext_counter)
+            print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
+            ext_counter += 1
+
 
 def main():
     """ main """
     parser = argparse.ArgumentParser(description='Update EasyConfig exts_list')
 
-    parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + __version__ + '  ' + __date__)
-    parser.add_argument(
-        '-v', '--verbose', dest='verbose', required=False, action='store_true',
-        help='Verbose; print lots of extra stuff, (default: false)')
+    parser.add_argument('--version', action='version', version='%(prog)s ' + 
+                        __version__ + '  ' + __date__)
+    parser.add_argument('-v', '--verbose', dest='verbose', required=False, 
+                        action='store_true',
+                        help='Verbose; print lots of extra stuff')
     parser.add_argument('--debug', required=False, action='store_true',
-        help='set log level to debug, (default: false)')
-    parser.add_argument('--pypi_meta', dest='pypimeta', action='store_true', required=False,
-        help='Output PyPi metadata for module')
-    parser.add_argument('--update-R-exts', type=str, metavar='R-Easyconfig', dest='r_eb',
-        help='Update R extentions')
-    parser.add_argument('--update-python-exts', type=str, metavar='Python-EasyConfig', dest='python_eb',
-        help='Update Python extentions')
+                        help='set log level to debug, (default: false)')
+    parser.add_argument('--exts-description-r', action='store_true', 
+                        help='Output descrption for libraries in exts_list')
+    parser.add_argument('--exts-update-r', nargs='?', help='Update R extensions')
+    parser.add_argument('--exts-search-cran', action='store_true', help='output libray metadata from CRAN/BioConductor')
+    parser.add_argument('--exts-update-python', nargs='?', help='update Python extensions')
+    parser.add_argument('--exts-search-pypi', nargs='?', help='output library metadata from PyPi')
+    parser.add_argument('--exts-description-python', action='store_true', help='Output descrption for libraries in exts_list')
+    #parser.add_argument('easyconfig', metavar='EasyConfig file', help='EasyConfig file')
     args = parser.parse_args()
 
-    if args.r_eb:
-        print('R EasyConfig file: {}'.format(args.r_eb))
-        eb = FrameWork(args, args.r_eb, 'R')
+    if args.exts_update_r or args.exts_description_r:
+        eb = FrameWork(args, args.exts_update_r, 'R')
         UpdateR(args, eb)
-    elif args.python_eb:
-        print('filename: {}'.format(args.python_eb))
-        eb = FrameWork(args, args.python_eb, 'Python')
+    elif args.exts_update_python or args.exts_description_python:
+        eb = FrameWork(args, args.exts_update_python, 'Python')
         UpdatePython(args, eb)
+    elif args.exts_search_pypi:
+        print(f"Search PyPi for {args.exts_search_pypi}")
+        UpdatePython(args, None)
 
 
 if __name__ == '__main__':

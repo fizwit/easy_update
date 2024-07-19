@@ -69,19 +69,12 @@ __date__ = 'Aug 15, 2019'
 class UpdateExts:
     """
     """
-    def __init__(self, args, eb):
+    def __init__(self, args, eb, lang):
         """
         """
         self.verbose = args.verbose
-        self.debug = False
-        try:
-            self.meta = args.meta
-        except AttributeError:
-            self.meta = None
-        try:
-            self.search_pkg = args.search_pkg
-        except AttributeError:
-            self.search_pkg = None
+        self.debug = args.debug
+        self.lang = lang
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
@@ -91,7 +84,7 @@ class UpdateExts:
         self.ext_list_len = 1
         self.dep_exts = list()
         self.checking = list()  # pytest -> attrs -> pytest
-        self.depend_exclude = list()
+        # self.depend_exclude = list()
         self.exts_processed = list()
 
         for exten in eb.dep_exts:
@@ -155,17 +148,17 @@ class UpdateExts:
         if pkg['action'] == 'update':
             version = '{} -> {}'.format(pkg['orig_ver'], pkg['version'])
         elif pkg['action'] == 'add':
-            version = '{} from {}'.format(pkg['version'], pkg['from'])
+            from_pkg, method = pkg['from']
+            version = '{} {} from {}'.format(pkg['version'], method, from_pkg)
         else:
             version = pkg['version']
         name = pkg['name']
         action = '(%s)' % pkg['action']
+        merge = name + ' : ' + version
         if len(name) > 25 and len(name) + len(version) < 53:
-            merge = name + ' : ' + version
             print('{:53} {:>12} [{}, {}]'.format(merge, action,
                       self.ext_list_len, self.ext_counter))
         elif len(version) > 25 and len(name) + len(version) < 53:
-            merge = name + ' : ' + version
             print('{:>53} {:>12} [{}, {}]'.format(merge, action,
                       self.ext_list_len, self.ext_counter))
         else:
@@ -173,11 +166,6 @@ class UpdateExts:
             print(tmpl.format(name, version, action,
                       self.ext_list_len, self.ext_counter))
 
-    def print_meta(self, info):
-        """ print meta data from CRAN or Pypi
-        :param info: dict
-        """
-        pass
 
     def check_package(self, pkg):
         """query package authority [Pypi, CRAN, Bio] to get the latest version
@@ -241,22 +229,21 @@ class UpdateExts:
 
         if 'requires' in pkg['meta'] and pkg['meta']['requires'] is not None:
             if self.debug:
-                sys.stderr.write('%s: %s\n' % (pkg['name'], pkg['meta']['requires']))
-            for depend in pkg['meta']['requires']:
+                print(f'{pkg["name"]} requires: {pkg["meta"]["requires"]}', file=sys.stderr)
+            for depend, method in pkg['meta']['requires']:
                 if depend not in self.depend_exclude:
                     dep_pkg = {'name': depend,
-                               'from': pkg['name'],
+                               'from': [pkg['name'], method],
+                               'mothod': method,
                                'version': 'x',
                                'spec': {}, 'meta': {}, 'level': pkg['level']+1}
                     self.check_package(dep_pkg)
         self.processed(pkg)
-        if self.search_pkg:
-            output = self.output_module(pkg)
-            print(output)
+        #if self.search_pkg:
+        #    output = self.output_module(pkg)
+        #    print(output)
         if self.verbose:
             self.print_status(pkg)
-        if self.meta:
-            self.print_meta(pkg['meta'])
         if pkg['action'] == 'add':
             self.ext_counter += 1
 
@@ -265,7 +252,6 @@ class UpdateExts:
         this is an external method for the class
         """
         self.ext_list_len = len(self.exts_orig)
-        print("how many are there? {}".format(self.ext_list_len))
         for ext in self.exts_orig:
             self.ext_counter += 1
             if isinstance(ext, tuple):
@@ -282,6 +268,19 @@ class UpdateExts:
                 self.processed({'name': ext, 'from': 'base'})
         if self.verbose:
             self.stats()
+
+    def exts_description(self):
+        """ Print library description from CRAN metadata for each extsion in exts_list """
+        for pkg in self.exts_orig:
+            status = get_package_info(pkg)
+            print("{}".format(pkg[0]))
+            if self.lang == 'Python':
+                ext_description = pkg['meta']['summary']
+            elif self.lang == 'R':
+                ext_description = pkg['meta']['info']['Description']
+            merge = pkg['name'] + ' : ' + pkg['version']
+            counter = '[{}, {}]'.format(self.ext_list_len, self.ext_counter)
+            print('{:10} {:53} {}'.format(counter, merge, ext_description))
 
     def stats(self):
         sys.stderr.write("Updated Packages: %d\n" % self.pkg_update)

@@ -38,7 +38,7 @@ try:
     import distro
     HAVE_DISTRO = True
 except ImportError as err:
-    sys.stderr.write("Failed to import 'distro' Python module: %s", err)
+    sys.stderr.write("Failed to import 'distro' Python module: %s".format(err))
     sys.exit()
 
 EXTERNAL_MODULE_MARKER = 'EXTERNAL_MODULE'
