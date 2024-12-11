@@ -259,7 +259,8 @@ class UpdateExts:
                 self.check_package(pkg)
             else:
                 pkg = {'name': ext, 'from': 'base'}
-            self.check_download_filename(pkg)
+            if self.language == 'Python':
+                self.check_download_filename(pkg)
             if pkg['action'] != 'duplicate':
                 self.processed(pkg)
 

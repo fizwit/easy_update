@@ -14,8 +14,8 @@ from pprint import pprint
 from pep508_parser import parser
 import pprint
 
-__version__ = '2.2.2'
-__date__ = 'June 27, 2024'
+__version__ = '2.2.3'
+__date__ = 'December 11, 2024'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 
@@ -28,6 +28,13 @@ current version for each package.
 """
 
 """ 
+2.2.3 refactor command line arguments one more time.  --exts-update will detect language (R or Python)
+    and remove --exts-update-r and --exts-update-python
+    refactor arg-parse to use subparsers.  This will allow for more options in the future.
+    continue to improve Python dependency checking.  The PEP508 parser is used to evaluate 
+    the output of the parser.  This is used to check for Python dependencies. 
+    renme pep_508 to pep508_eval to be more descriptive. PyPi already has a module named pep_508
+
 
 2.2.2 refactor pypi_requires_dist to use pep508 pareser.  This will allow for much more
     reliable parsing of package dependencies.  The pep508 parser is used to evaluate the
@@ -176,10 +183,9 @@ logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)
 class UpdateR(UpdateExts):
     """extend UpdateExts class to update package names from CRAN and Biocondutor
     """
-    def __init__(self, args, eb):
-        self.verbose = args.verbose
-        self.exts_search_cran = args.exts_search_cran
-
+    def __init__(self, argument, operation, verbose, eb):
+        self.verbose = verbose
+        self.debug = False
         self.bioc_data = {}
         self.dotGraph = {}
         self.name = eb.name
@@ -192,11 +198,14 @@ class UpdateR(UpdateExts):
             self.read_bioconductor_packages(eb.biocver)
         else:
             print('WARNING: BioCondutor local_biocver is not defined. Bioconductor will not be searched')
-        if args.exts_description or args.exts_search_cran:
+        if operation == 'search_cran':
+            pass
+            #  display_cran_meta(argument)
+        elif operation == 'description':
             self.exts_description(eb.exts_list)
             self.printDotGraph(self.dotGraph)
-        else:
-            UpdateExts.__init__(self, args, eb)
+        elif operation == 'update':
+            UpdateExts.__init__(self, verbose, eb)
             self.updateexts()
             eb.print_update('R', self.exts_processed)
 
@@ -213,10 +222,9 @@ class UpdateR(UpdateExts):
                 print('Error: %s %s' % (resp.status_code, url))
                 sys.exit(1)
             self.bioc_data.update(resp.json())
-            if self.debug:
-                print('reading Bioconductor Package inf: %s' % url)
-                pkgcount = len(self.bioc_data.keys())
-                print('size: %s' % pkgcount)
+        logging.debug('reading Bioconductor Package inf: %s' % url)
+        pkgcount = len(self.bioc_data.keys())
+        logging.debug('size: %s' % pkgcount)
 
     def get_cran_info(self, pkg):
         """ MD5sum, Description, Package, releases[]
@@ -227,8 +235,6 @@ class UpdateR(UpdateExts):
             return "not found"
         cran_info = resp.json()
         pkg['info'] = cran_info
-        if self.exts_search_cran:
-            self.print_meta(cran_info)
         pkg['meta']['version'] = cran_info['Version']
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
             return 'base package'
@@ -239,6 +245,17 @@ class UpdateR(UpdateExts):
                     if pkg_name not in self.depend_exclude:
                         pkg['meta']['requires'].append([pkg_name, dep_type])
         return 'ok'
+
+    def display_cran_meta(self, pkg_name):
+        """ display metadata from CRAN
+        --search-cran <pkg_name>
+        """
+        print("Search CRAN for %s" % pkg_name)
+        pkg = {'name': pkg_name, 'version': ""}
+        status = self.get_cran_info(pkg)
+        if status == 'not found':
+            sys.exit(1)
+        self.print_meta(pkg['pkg_name']['info'])
 
     def get_bioc_info(self, pkg):
         """Extract Dependencies from BioCondutor json metadata
