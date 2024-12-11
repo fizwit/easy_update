@@ -4,18 +4,16 @@ import re
 import os
 import sys
 import argparse
-import imp
 import requests
 from framework import FrameWork
 # from pprint import pprint
 # from pprint import pformat
 
 """
-EasyUpdate performs package version updating for EasyBuild
+EasyUpdate performs package version updating of exts_list for EasyBuild
 easyconfig files. Automates the the updating of version information for R,
-Python and bundles that extend R and Python. Package version information
-is updated for modules in exts_list. Use language specific APIs for resolving
-current version for each package.
+Python and bundles that extend R and Python. Use language specific APIs for resolving
+current versions. (CRAN, Pypi, Bioconductor)
 """
 
 """ Release Notes
@@ -69,12 +67,12 @@ __date__ = 'Aug 15, 2019'
 class UpdateExts:
     """
     """
-    def __init__(self, args, eb, lang):
+    def __init__(self, verbose, eb):
         """
         """
-        self.verbose = args.verbose
-        self.debug = args.debug
-        self.lang = lang
+        self.verbose = verbose
+        self.debug = False
+        self.language = eb.language
         self.ext_counter = 0
         self.pkg_update = 0
         self.pkg_new = 0
@@ -82,23 +80,13 @@ class UpdateExts:
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ext_list_len = 1
-        self.dep_exts = list()
+        self.dep_exts = eb.dep_exts
         self.checking = list()  # pytest -> attrs -> pytest
-        # self.depend_exclude = list()
         self.exts_processed = list()
-
-        for exten in eb.dep_exts:
-            if isinstance(exten, tuple):
-                if len(exten) > 2 and 'modulename' in exten[2] and exten[2]['modulename']:
-                    name = exten[2]['modulename']
-                else:
-                    name = exten[0]
-            else:
-                name = exten
-            self.dep_exts.append(name)
         self.exts_orig = eb.exts_list
         self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
-                                'version': eb.version}
+                            'version': eb.version}
+        self.dep_exts_lower = [sub_list[0].lower() for sub_list in self.dep_exts]
 
     def is_processed(self, pkg):
         """ check if package has been previously processed
@@ -106,21 +94,27 @@ class UpdateExts:
                 Mark as 'duplicate'
         updated July 2018
         """
-        name = pkg['name']
+        names = []
+        names.append(pkg['name'])
+        if 'spec' in pkg and 'modulename' in pkg['spec']:
+            names.append(pkg['spec']['modulename'])
+        if '-' in pkg['name']:
+            names.append(pkg['name'].replace('-', '_'))
         found = False
-        if name.casefold() in (ext.casefold() for ext in self.dep_exts):
-            found = True
-        elif name in self.checking:
-            found = True
-        else:
-            for p_pkg in self.exts_processed:
-                if 'spec' in p_pkg and 'modulename' in p_pkg['spec']:
-                    modulename = p_pkg['spec']['modulename']
-                else:
-                    modulename = ''
-                if (str(name) == str(p_pkg['name'])) or (name == modulename):
-                    found = True
-                    break
+        for name in names:
+            if name.casefold() in self.dep_exts_lower:
+                found = True
+            elif name in self.checking:
+                found = True
+            else:
+                for p_pkg in self.exts_processed:
+                    if 'spec' in p_pkg and 'modulename' in p_pkg['spec']:
+                        modulename = p_pkg['spec']['modulename']
+                    else:
+                        modulename = ''
+                    if (str(name) == str(p_pkg['name'])) or (name == modulename):
+                        found = True
+                        break
         if found:
             if not pkg['from']:
                 pkg['action'] = 'duplicate'
@@ -157,15 +151,13 @@ class UpdateExts:
         merge = name + ' : ' + version
         if len(name) > 25 and len(name) + len(version) < 53:
             print('{:53} {:>12} [{}, {}]'.format(merge, action,
-                      self.ext_list_len, self.ext_counter))
+                  self.ext_list_len, self.ext_counter))
         elif len(version) > 25 and len(name) + len(version) < 53:
             print('{:>53} {:>12} [{}, {}]'.format(merge, action,
-                      self.ext_list_len, self.ext_counter))
+                  self.ext_list_len, self.ext_counter))
         else:
             tmpl = '{:>25} : {:<25} {:>12} [{}, {}]'
-            print(tmpl.format(name, version, action,
-                      self.ext_list_len, self.ext_counter))
-
+            print(tmpl.format(name, version, action, self.ext_list_len, self.ext_counter))
 
     def check_package(self, pkg):
         """query package authority [Pypi, CRAN, Bio] to get the latest version
@@ -238,10 +230,9 @@ class UpdateExts:
                                'version': 'x',
                                'spec': {}, 'meta': {}, 'level': pkg['level']+1}
                     self.check_package(dep_pkg)
-        self.processed(pkg)
-        #if self.search_pkg:
-        #    output = self.output_module(pkg)
-        #    print(output)
+        # if self.search_pkg:
+        #     output = self.output_module(pkg)
+        #     print(output)
         if self.verbose:
             self.print_status(pkg)
         if pkg['action'] == 'add':
@@ -262,25 +253,52 @@ class UpdateExts:
                        'level': 0, 'meta': {}}
                 if len(ext) > 2:
                     pkg['spec'] = ext[2]
+                else:
+                    pkg['spec'] = {}
                 pkg['meta'] = {}
                 self.check_package(pkg)
             else:
-                self.processed({'name': ext, 'from': 'base'})
+                pkg = {'name': ext, 'from': 'base'}
+            self.check_download_filename(pkg)
+            if pkg['action'] != 'duplicate':
+                self.processed(pkg)
+
         if self.verbose:
             self.stats()
 
     def exts_description(self):
-        """ Print library description from CRAN metadata for each extsion in exts_list """
+        """ Print library description from CRAN metadata for each extension in exts_list.
+
+        This method iterates over the exts_orig list and retrieves the package information for each extension.
+        It then prints the package name, version, and description based on the selected programming language.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         for pkg in self.exts_orig:
             status = get_package_info(pkg)
             print("{}".format(pkg[0]))
-            if self.lang == 'Python':
+            if self.language== 'Python':
                 ext_description = pkg['meta']['summary']
-            elif self.lang == 'R':
+            elif self.language== 'R':
                 ext_description = pkg['meta']['info']['Description']
             merge = pkg['name'] + ' : ' + pkg['version']
             counter = '[{}, {}]'.format(self.ext_list_len, self.ext_counter)
             print('{:10} {:53} {}'.format(counter, merge, ext_description))
+
+    def printDotGraph(self, dotGraph):
+        print("digraph {} {{".format(self.name))
+        print('{};'.format(self.name))
+        for p in dotGraph.keys():
+            print('"{}";'.format(p))
+        for p in dotGraph.keys():
+            print('"{}" -> "{}";'.format(self.name, p))
+            for dep, method in dotGraph[p]['meta']['requires']:
+                print('"{}" -> "{}";'.format(p, dep))
+        print("}")
 
     def stats(self):
         sys.stderr.write("Updated Packages: %d\n" % self.pkg_update)

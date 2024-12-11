@@ -18,3 +18,5 @@ requests ~= 2.23.0
 
 # easy_update/marker.py: 5
 setuptools ~= 45.2.0
+pep508 ~=2019.3
+pep508_parser

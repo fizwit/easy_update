@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 
-import re
 import os
 import sys
-import shutil
-import argparse
 import types
-import requests
 import logging
 from templates import TEMPLATE_CONSTANTS
 from constants import EASYCONFIG_CONSTANTS
+# from easybuild.tools.toolchain.constants import ALL_MAP_CLASSES
+# from easybuild.framework.easyconfig.templates import TEMPLATE_CONSTANTS
 
-""" 1.0.4 Nov, 2022
+"""
+    1.0.5 Oct 11, 2024 - Add back in the ability to read the EasyConfig file
+    to determine the language.
+    - Enable the "description" feature
+
+    1.0.4 Nov, 2022
     - no long try to guess the language by reading the EasyConfig. Lang must
       be speicified as a command line argument.
     - remove "detect_language"
@@ -52,27 +55,22 @@ from constants import EASYCONFIG_CONSTANTS
     Read exts_list for R and Python listed in dependencies.
 """
 
-__version__ = '1.0.4'
+__version__ = '1.0.5'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
-__date__ = 'Nov 2, 2022'
+__date__ = 'Oct 10, 2024'
 
 logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
                     level=logging.WARN)
-
+#logging.getLogger().setLevel(logging.DEBUG)
 
 class FrameWork:
     """provide access to EasyBuild Config file variables
     name, version, toolchain, eb.exts_list, dependencies, modulename, biocver,
-    methods:
-        print_update()
     """
-    def __init__(self, args, easyconfig, lang):
-        if args.debug:
-            logging.getLogger().setLevel(logging.DEBUG)
-            logging.debug('debug enabled')
+    def __init__(self, easyconfig, verbose, no_dependencies):
         self.easyconfig = easyconfig
-        self.lang = lang
-        self.verbose = args.verbose
+        self.verbose = verbose
+        self.language = None
         self.code = None
         self.pyver = None
         self.rver = None
@@ -82,7 +80,7 @@ class FrameWork:
         self.ptr_head = 0
         self.modulename = None
         self.dep_exts = []
-
+        self.exts_list = []
         self.find_easyconfig_paths(easyconfig)
         logging.debug("EasyConfig search paths: {}".format(self.base_paths))
 
@@ -94,19 +92,14 @@ class FrameWork:
         self.name = eb.name
         self.version = eb.version
         self.pyver = self.rver = None
-        if eb.name == 'Python':
-            self.pyver = eb.version
-        if self.name == 'R':
-            self.rver = eb.version
+        self.find_language_version(eb)
         self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                             'version': eb.version,
                             'pyver': self.pyver,
                             'rver': self.rver,
                             'cudaver': ""}
-        try:
-            self.defaultclass = eb.exts_defaultclass
-        except AttributeError:
-            self.defaultclass = None
+        if no_dependencies:
+            return
         self.search_dependencies(eb)
         try:
             self.versionsuffix = eb.versionsuffix % self.interpolate
@@ -122,7 +115,7 @@ class FrameWork:
         try:
             self.dependencies = eb.dependencies
         except AttributeError:
-            logging.warn('WARNING: no dependencies defined!')
+            logging.WARN('WARNING: no dependencies defined!')
         try:
             self.biocver = eb.local_biocver
         except AttributeError:
@@ -139,7 +132,7 @@ class FrameWork:
         for constant in TEMPLATE_CONSTANTS:
             header += '{} = "{}"\n'.format(constant[0], constant[1])
         for constant in EASYCONFIG_CONSTANTS:
-            header += '{} = "{}"\n'.format(constant, EASYCONFIG_CONSTANTS[constant][1])
+            header += '{} = "{}"\n'.format(constant, EASYCONFIG_CONSTANTS[constant])
         eb = types.ModuleType("EasyConfig")
         try:
             with open(file_name, "r") as f:
@@ -150,18 +143,44 @@ class FrameWork:
         try:
             exec(header + code, eb.__dict__)
         except Exception as err:
-            logging.error("interperting EasyConfig error: %s" % err)
+            logging.error(f'interperting EasyConfig error: {err}')
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
-
-        # R module might have been installed without extensions.
-        # Start with an empty list if it is the case.
-        if 'exts_list' not in eb.__dict__:
-            eb.exts_list = []
-
         return eb
 
+    def find_language_version(self, eb):
+        """ find the language and version from the EasyConfig file """
+        if (eb.name == 'Python' or
+            ('easyblock' in eb.__dict__ and eb.easyblock == 'PythonBundle' or eb.easyblock == 'PythonPackage') or
+            ('exts_defaultclass' in eb.__dict__ and eb.exts_defaultclass == 'PythonPackage')
+            ):
+            print('== Python EasyConfig')
+            self.language = 'Python'
+            if self.name == 'Python':
+                self.pyver = eb.version
+            else:
+                for dep in eb.dependencies:
+                    if dep[0] == 'Python':
+                        self.pyver = dep[1]
+                        break
+        elif (eb.name == 'R' or
+              ('easyblock' in eb.__dict__ and eb.easyblock == 'RPackage') or
+              ('exts_defaultclass' in eb.__dict__ and eb.exts_defaultclass == 'RPackage')
+              ):
+            self.language = 'R'
+            if self.name == 'R':
+                self.rver = eb.version
+            else:
+                for dep in eb.dependencies:
+                    if dep[0] == 'R':
+                        self.rver = dep[1]
+                        break
+        else:
+            msg = """Unknown language exts_list type. Expecting Python or R based easyconfig
+    easyblock: ['PythonBundle', 'RPackage'] or
+    exts_defaultclass: ['PythonPackage', 'RPackage']"""
+            print('Error: {} {}'.format(eb.name, msg))
 
     def find_easyconfig_paths(self, filename):
         """find the paths to EasyConfigs, search within the path given by the easyconfig
@@ -191,7 +210,6 @@ class FrameWork:
             self.base_paths.append(os.path.join(eb_root, 'easybuild/easyconfigs'))
         logging.debug('easyconfig search paths: {}'.format(self.base_paths))
 
-
     def find_easyconfig(self, name, easyconfigs):
         """ search base_paths for easyconfig filename """
         found = None
@@ -207,7 +225,6 @@ class FrameWork:
                             return found
         return None
 
-
     def build_dep_filename(self, eb, dep):
         """build a list of possible filenames from a dependency object.
            This is a Hack for minimal toolchain support
@@ -222,6 +239,7 @@ class FrameWork:
             ['foss-2021b', 'GCCcore-11.2.0', 'GCC-11.2.0', 'gompi-2021b'],
             ['foss-2022a', 'GCCcore-11.3.0', 'GCC-11.3.0', 'gompi-2022a'],
             ['foss-2022b', 'GCCcore-12.2.0', 'GCC-12.2.0', 'gompi-2022b', 'gfbf-2022b'],
+            ['foss-2023a', 'GCCcore-12.3.0', 'GCC-12.3.0', 'gompi-2023a', 'gfbf-2023a'],
             ['foss-2023b', 'GCCcore-13.2.0', 'GCC-13.2.0', 'gompi-2023b', 'gfbf-2023b'],
         ]
         tc_versions = {
@@ -233,9 +251,13 @@ class FrameWork:
             '11.2.0': toolchains[5], '2021b': toolchains[5],
             '11.3.0': toolchains[6], '2022a': toolchains[6],
             '12.2.0': toolchains[7], '2022b': toolchains[7],
-            '13.2.0': toolchains[8], '2023b': toolchains[8],
+            '12.3.0': toolchains[8], '2023a': toolchains[8],
+            '13.2.0': toolchains[9], '2023b': toolchains[9],
         }
         prefix = dep[0] + '-' + dep[1]
+        if (len(dep)) == 4 and dep[3] == 'System toolchain':
+            dep_filenames = prefix + '.eb'
+            return [dep_filenames]
         tc_version = self.toolchain['version']
         if tc_version not in tc_versions:
             sys.stderr.writelines('Could not figure out what toolchain you are using.')
@@ -250,37 +272,54 @@ class FrameWork:
         if found add the exts_list to the list of dependent
         exts  <dep_exts>
         """
+        print('== searching dependencies')
         try:
             dependencies = eb.dependencies
         except NameError:
             return None
         for dep in dependencies:
-            if self.lang == 'Python' and self.pyver is None and dep[0] == 'Python':
-                self.interpolate['pyver'] = dep[1]
-                self.pyver = dep[1]
-            if self.lang == 'R' and self.rver is None and dep[0] == 'R':
-                self.interpolate['rver'] = dep[1]
-                self.rver = dep[1]
             dep_filenames = self.build_dep_filename(eb, dep)
-            logging.debug('dependency file name: {}'.format(dep_filenames))
             easyconfig_filename = self.find_easyconfig(dep[0], dep_filenames)
             if not easyconfig_filename:
                 print('== dependency Not Found: {}'.format(dep_filenames[0]))
                 continue
-            if self.verbose:
-                print('== reading dependcy: {}'.format(os.path.basename(easyconfig_filename)))
+            logging.debug('dependency file name: {}'.format(dep_filenames))
             dep_eb = self.parse_eb(str(easyconfig_filename), False)
-            # Histroicly easyblock PythonPackage does not have an exts_list
-            # The filename is the name of the Python Library
-            if hasattr(dep_eb, 'easyblock') and dep_eb.easyblock == 'PythonBundle':
-                self.dep_exts.extend([(dep_eb.name, dep_eb.version, 'Module')])
-                logging.debug('== adding dep {} {}'.format(dep_eb.name, dep_eb.version))
-            if 'exts_list' in dep_eb.__dict__:
-                self.dep_exts.extend(dep_eb.exts_list)
-                if self.verbose:
-                    print('== adding dependices: {}'.format(os.path.basename(easyconfig_filename)))
-
-
+            if self.language == 'Python':
+                if dep[0] == 'Python' and self.pyver is None:
+                    self.interpolate['pyver'] = dep[1]
+                    self.pyver = dep[1]
+                self.add_to_python_dep_exts(dep_eb, easyconfig_filename, self.dep_exts)
+            elif self.language == 'R':
+                if dep[0] == 'R' and self.rver is None:
+                    self.interpolate['rver'] = dep[1]
+                    self.rver = dep[1]
+                    if 'exts_list' in dep_eb.__dict__:
+                        self.dep_exts.extend(dep_eb.exts_list)
+            if self.verbose:
+                print('== adding dependencies: {}'.format(os.path.basename(easyconfig_filename)))
+            
+    def add_to_python_dep_exts(self, dep_eb, easyconfig_filename, dep_exts):
+        """ Python Dependants have many ways to specify the module name.
+            add package to dep_exts if not already in list
+            - PythonPackage does not have exts_list. Add name and verstion to dep_exts
+        """
+        base_name = os.path.basename(easyconfig_filename)
+        if 'easyblock' in dep_eb.__dict__ and dep_eb.easyblock == 'PythonPackage':
+            self.dep_exts.append([dep_eb.name, dep_eb.version, {'module': base_name}])
+            if '-' in dep_eb.name:
+                self.dep_exts.append([dep_eb.name.replace('-', '_'), dep_eb.version, {'module': base_name}])
+            if 'options' in dep_eb.__dict__ and 'modulename' in dep_eb.options:
+                self.dep_exts.append([dep_eb.options['modulename'], dep_eb.version,
+                                     {'module': os.path.basename(base_name)}])
+        if 'exts_list' in dep_eb.__dict__:
+            for ext in dep_eb.exts_list:
+                if ext not in self.dep_exts:
+                    if len(ext) > 2 and 'module' in ext[2]:
+                        self.dep_exts.append([(ext[0], ext[1], {'module': ext[2]['module']})])
+                    else:
+                        self.dep_exts.append([ext[0], ext[1], {'modulename': base_name}])
+            
     def check_eb_package_name(self, filename):
         """" check that easybuild filename matches package name
         easyconfig is original filename
@@ -307,7 +346,6 @@ class FrameWork:
         self.ptr_head = self.code[self.ptr_head:].find("'") + self.ptr_head + 1
         indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
         self.write_chunk(indx)
-
 
     def output_module(self, lang, pkg):
         """write exts_list entry

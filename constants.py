@@ -33,6 +33,7 @@ be used within an Easyconfig file.
 import os
 import sys
 import platform
+# from systemtools import KNOWN_ARCH_CONSTANTS, get_os_name, get_os_type, get_os_version
 
 try:
     import distro
@@ -46,6 +47,7 @@ EXTERNAL_MODULE_MARKER = 'EXTERNAL_MODULE'
 # from easybuild.tools.systemtools import get_os_type, KNOWN_ARCH_CONSTANTS
 KNOWN_ARCH_CONSTANTS = ('aarch64', 'ppc64le', 'riscv64', 'x86_64')
 
+
 def get_os_version():
     """Determine system version."""
 
@@ -53,6 +55,7 @@ def get_os_version():
     if not os_version and HAVE_DISTRO:
         os_version = distro.version()
     return os_version
+
 
 def get_os_name():
     """
@@ -104,6 +107,7 @@ def get_os_type():
     else:
         raise SystemToolsException("Failed to determine system name using platform.system().")
 
+
 def _get_arch_constant():
     """
     Get value for ARCH constant.
@@ -122,23 +126,17 @@ def _get_arch_constant():
 
 # constants that can be used in easyconfig
 EASYCONFIG_CONSTANTS = {
-    'ARCH': (_get_arch_constant(), "CPU architecture of current system (aarch64, x86_64, ppc64le, ...)"),
-    'EXTERNAL_MODULE': (EXTERNAL_MODULE_MARKER, "External module marker"),
-    'HOME': (os.path.expanduser('~'), "Home directory ($HOME)"),
-    'OS_TYPE': (get_os_type(), "System type (e.g. 'Linux' or 'Darwin')"),
-    'OS_NAME': (get_os_name(), "System name (e.g. 'fedora' or 'RHEL')"),
-    'OS_VERSION': (get_os_version(), "System version"),
-    'SYS_PYTHON_VERSION': (platform.python_version(), "System Python version (platform.python_version())"),
-    'SYSTEM': ({'name': 'system', 'version': 'system'}, "System toolchain"),
-
-    'OS_PKG_IBVERBS_DEV': (('libibverbs-dev', 'libibverbs-devel', 'rdma-core-devel'),
-                           "OS packages providing ibverbs/infiniband development support"),
-    'OS_PKG_OPENSSL_BIN': (('openssl'),
-                           "OS packages providing the openSSL binary"),
-    'OS_PKG_OPENSSL_LIB': (('libssl', 'libopenssl'),
-                           "OS packages providing openSSL libraries"),
-    'OS_PKG_OPENSSL_DEV': (('openssl-devel', 'libssl-dev', 'libopenssl-devel'),
-                           "OS packages providing openSSL developement support"),
-    'OS_PKG_PAM_DEV': (('pam-devel', 'libpam0g-dev'),
-                       "OS packages providing Pluggable Authentication Module (PAM) developement support"),
+    'ARCH': _get_arch_constant(),
+    'EXTERNAL_MODULE': EXTERNAL_MODULE_MARKER,
+    'HOME': os.path.expanduser('~'),
+    'OS_TYPE': get_os_type(), 
+    'OS_NAME': get_os_name(),
+    'OS_VERSION': get_os_version(),
+    'SYS_PYTHON_VERSION': platform.python_version(),
+    'SYSTEM': "System toolchain",
+    'OS_PKG_IBVERBS_DEV': ('libibverbs-dev', 'libibverbs-devel', 'rdma-core-devel'),
+    'OS_PKG_OPENSSL_BIN': ('openssl'),
+    'OS_PKG_OPENSSL_LIB': ('libssl', 'libopenssl'),
+    'OS_PKG_OPENSSL_DEV': ('openssl-devel', 'libssl-dev', 'libopenssl-devel'),
+    'OS_PKG_PAM_DEV': ('pam-devel', 'libpam0g-dev'),
 }

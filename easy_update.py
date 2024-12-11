@@ -5,10 +5,14 @@ import sys
 import json
 import argparse
 import requests
+import logging
+from pathlib import Path
 from framework import FrameWork
 from updateexts import UpdateExts
-from pep508 import Pep508
+from pep508_eval import Pep508_eval
+from pprint import pprint
 from pep508_parser import parser
+import pprint
 
 __version__ = '2.2.2'
 __date__ = 'June 27, 2024'
@@ -164,13 +168,16 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
 """
 
+logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
+                    level=logging.WARN)
+# logging.getLogger().setLevel(logging.DEBUG)
+
 
 class UpdateR(UpdateExts):
     """extend UpdateExts class to update package names from CRAN and Biocondutor
     """
     def __init__(self, args, eb):
         self.verbose = args.verbose
-        self.debug = args.debug
         self.exts_search_cran = args.exts_search_cran
 
         self.bioc_data = {}
@@ -185,11 +192,11 @@ class UpdateR(UpdateExts):
             self.read_bioconductor_packages(eb.biocver)
         else:
             print('WARNING: BioCondutor local_biocver is not defined. Bioconductor will not be searched')
-        if args.exts_description_r or args.exts_search_cran:
+        if args.exts_description or args.exts_search_cran:
             self.exts_description(eb.exts_list)
-            self.printDotGraph()
+            self.printDotGraph(self.dotGraph)
         else:
-            UpdateExts.__init__(self, args, eb, 'R')
+            UpdateExts.__init__(self, args, eb)
             self.updateexts()
             eb.print_update('R', self.exts_processed)
 
@@ -246,7 +253,7 @@ class UpdateR(UpdateExts):
             pkg['meta']['version'] = self.bioc_data[pkg['name']]['Version']
             for dep_type in self.dep_types:
                 if dep_type in self.bioc_data[pkg['name']]:
-                    dep_list = [re.split('[ (><=,]', s)[0] for s in self.bioc_data[pkg['name']][dep_type]]
+                    dep_list = [re.split('[ (><=,]', s)[0] for s in self.bioc_data[pkg['name']][dep_type]]   
                     for dep in dep_list:
                         pkg['meta']['requires'].append([dep, dep_type])
         else:
@@ -313,17 +320,6 @@ class UpdateR(UpdateExts):
                 self.dotGraph[str(pkg['name'])] = pkg
             ext_counter += 1
 
-    def printDotGraph(self):
-        print("digraph {} {{".format(self.name))
-        print('{};'.format(self.name))
-        for p in self.dotGraph.keys():
-            print('"{}";'.format(p))
-        for p in self.dotGraph.keys():
-            print('"{}" -> "{}";'.format(self.name, p))
-            for dep, method in self.dotGraph[p]['meta']['requires']:
-                print('"{}" -> "{}";'.format(p, dep))
-        print("}")
-
 
 class UpdatePython(UpdateExts):
     """extend ExtsList class to update package names from PyPI
@@ -334,26 +330,74 @@ class UpdatePython(UpdateExts):
        - pypi projects names do not always match module names and or file names
          project: liac-arff, module: arff,  file name: liac_arff.zip
     """
-    def __init__(self, args, eb):
-        self.debug = args.debug
+    def __init__(self, argument, operation, verbose, eb):
+        self.verbose = verbose
         self.pkg_dict = None
         self.dep_types = ['requires_dist']
         self.python_version = None
-        self.pep508 = Pep508()
-        
-        if args.exts_search_pypi:
-            self.exts_search_pypi = args.exts_search_pypi
-            self.get_pypi_project({'name': args.exts_search_pypi, 'version': ""})
-        else:
-            self.exts_search_pypi = None
+        self.exts_search_pypi = None
+        self.dotGraph = {}
+        self.indent = "    "
+        self.pep508 = Pep508_eval()  # instatiate PEP508 evaluator
+        print('Python Update')
+        if operation == 'search_pypi':
+            self.display_pypi_meta(argument)
+        elif operation == 'description':
+            # self.exts_description(eb.exts_list)
+            # self.printDotGraph()
+            pass
+        elif operation == 'dep_graph':
+            self.pypi_query(eb.exts_list, argument)
+        elif operation == 'update':
             (nums) = eb.pyver.split('.')
             self.python_version = "%s.%s" % (nums[0], nums[1])
-            UpdateExts.__init__(self, args, eb, 'Python')
+            UpdateExts.__init__(self, verbose, eb)
             # Python >3.3 has additional built in modules
             self.depend_exclude = ['argparse', 'asyncio', 'typing', 'sys'
                                    'functools32', 'enum34', 'future', 'configparser']
             self.updateexts()
-            eb.print_update('Python', self.exts_processed)
+            # eb.print_update('Python', self.exts_processed)
+            self.print_update()
+
+    def print_update(self):
+        """ print update information for Python """
+        print('Python Update Information')
+        simple_fmt = "    " + "('{}', '{}'),"
+        pkg_fmt = "    " + "('{}', '{}', {{"
+        item_fmt = "        " + "'%s': %s,"
+        quoted_item_fmt = "        " + "'%s': '%s',"
+        print('exts_list = [')
+        for extension in self.exts_processed:
+            name = extension['name']
+            if extension['action'] == 'duplicate':
+                continue
+            if 'spec' in extension:
+                print(pkg_fmt.format(name, extension['version']))
+                for item in extension['spec'].keys():
+                    if type(extension['spec'][item]) is list:
+                        print(item_fmt % (item, extension['spec'][item]))
+                    else:
+                        print(quoted_item_fmt % (item, extension['spec'][item]))
+                print("    }),")
+            else:
+                print(simple_fmt.format(name, extension['version']))
+        print(']')
+
+    def display_pypi_meta(self, pypi_project_name):
+        """ display metadata from PyPi
+        --search-pypi <pypi_project_name>
+        """
+        print(f"Search PyPi for {pypi_project_name}")
+        project = self.get_pypi_project({'name': pypi_project_name, 'version': ""})
+        if project == 'not found':
+            sys.exit(1)
+        self.print_meta(project)
+        project = self.get_pypi_pkg_data({'name': project['info']['name']}, project['info']['version'])
+        if project == 'not found':
+            sys.exit(1)
+        for url in project['urls']:
+            if 'filename' in url:
+                print(f"Filename: {url['filename']}")
 
     def get_pypi_project(self, pkg):
         """ Python PyPi project
@@ -362,11 +406,9 @@ class UpdatePython(UpdateExts):
         req = 'https://pypi.org/pypi/%s/json' % pkg['name']
         resp = requests.get(req)
         if resp.status_code != 200:
-            sys.stderr.write('{} not in PyPi'.format(pkg['name']))
+            print('{} not in PyPi'.format(pkg['name']), file=sys.stderr)
             return 'not found'
         project = resp.json()
-        if self.exts_search_pypi:
-            self.print_meta(project)
         return project
 
     def get_pypi_pkg_data(self, pkg, version=None):
@@ -384,8 +426,7 @@ class UpdatePython(UpdateExts):
         # projects names might differ from import names
         # sphinx -> Sphinx
         if pkg['name'] != project['info']['name']:
-            if self.debug:
-                print('Project name {} modulename {}\n'.format(
+            logging.debug('Project name {} modulename {}\n'.format(
                       project['info']['name'], pkg['name']))
             if 'spec' in pkg:
                 pkg['spec']['modulename'] = pkg['name']
@@ -420,6 +461,7 @@ class UpdatePython(UpdateExts):
                 print("    %s: %s" % (key, info[key][1:60]))
             else:
                 print('    {}: {}'.format(key, json.dumps(info[key], indent=4)))
+        print('===')
 
     def pypi_requires_dist(self, name, requires):
         """ process the requires_dist from Pypi. The requires_dist is a list. Evaluate each item
@@ -428,8 +470,7 @@ class UpdatePython(UpdateExts):
         if requires is None:
             return []
         depends_on = []
-        if self.debug:
-            print(f' == {name} requires: {requires}', file=sys.stderr)
+        logging.debug(f' == {name} requires: {requires}')
         for require in requires:
             try:
                 parsed = parser.parse(require)
@@ -458,7 +499,7 @@ class UpdatePython(UpdateExts):
                 break
         # one last try to find package release data
         if status != 'ok':
-            cplist = ['cp36', 'cp37', 'cp38', 'cp39']
+            cplist = ['cp38', 'cp39', 'cp310', 'cp311', 'cp312']
             for rel in project['releases'][version]:
                 if any(cver in rel['python_version'] for cver in cplist):
                     if 'manylinux' in rel['filename']:
@@ -467,16 +508,53 @@ class UpdatePython(UpdateExts):
                         break
         return status
 
+    def check_download_filename(self, pkg):
+        """ Python project name, module name, and file name do not awlays match
+            define 'source_tmpl' to match the file name from pypi
+        """
+        if 'filename' not in pkg['meta']:
+            return
+        filename = pkg['meta']['filename']
+        source_targz = "{}-{}.tar.gz".format(pkg['name'], pkg['version'])
+        if source_targz == filename:
+            return   # no need to check further
+        template = None
+        if '-' in pkg['name']:
+            dash_targz = "{}-{}.tar.gz".format(pkg['name'].replace('-', '_'), pkg['version'])
+            if dash_targz == filename:
+                template = "{}-%(version)s.tar.gz".format(pkg['name'].replace('-', '_'))
+        if '.' in pkg['name']:
+            dot_targz = "{}-{}.tar.gz".format(pkg['name'].replace('.', '_'), pkg['version'])
+            if dot_targz == filename:
+                template = "{}-%(version)s.tar.gz".format(pkg['name'].replace('.', '_'))
+        if any(map(str.isupper, pkg['name'])):
+            lower_targz = "{}-{}.tar.gz".format(pkg['name'].lower(), pkg['version'])
+            if lower_targz == filename:
+                template = "{}-%(version)s.tar.gz".format(pkg['name'].lower())
+        if 'zip' in filename and filename == "{}-{}.zip".format(pkg['name'], pkg['version']):
+            template = "%(name)s-%(version)s.zip"
+        if 'tar.bz2' in filename and filename == "{}-{}.tar.bz2".format(pkg['name'], pkg['version']):
+            template = "%(name)s-%(version)s.tar.bz2"
+        if not template:
+            print(f"WARNING: {pkg['name']} filename does not match templates. {filename}")
+        if 'spec' not in pkg:
+            pkg['spec'] = {'source_tmpl': template}
+            print(f"WARNING: {pkg['name']} filename does not have a spec.")
+        else:
+            pkg['spec']['source_tmpl'] = template
+
     def get_package_info(self, pkg):
         """get version information from pypi.  If <pkg_name> is not processed
         seach pypi. pkg_name is now case sensitive and must match
         """
         project = self.get_pypi_project(pkg)
-        if project == 'not found':
+        self.project = project
+        if self.project == 'not found':
             return 'not found'
         pkg['meta'].update(project['info'])
         # new_version = pkg['meta']['version']
         status = self.get_pypi_release(pkg, project)
+        #  self.check_download_filename(pkg, project)
         pkg['meta']['requires'] = []
         if 'requires_dist' in project['info']:
             requires = project['info']['requires_dist']
@@ -502,6 +580,7 @@ class UpdatePython(UpdateExts):
 
     def exts_description(self, exts_list):
         """ Print library description from PyPi metadata for each extsion in exts_list """
+        print('exts_description from easy_update - Python class')
         ext_list_len = len(exts_list)
         ext_counter = 1
         for ext in exts_list:
@@ -510,16 +589,50 @@ class UpdatePython(UpdateExts):
             else:
                 continue
             status = self.get_package_info(pkg)
-            ext_description = pkg['meta']['summary']
+            if status == "not found":
+                ext_description = 'Package Not Found in PyPi'
+            else:
+                ext_description = pkg['meta']['summary']
             counter = '[{}, {}]'.format(ext_list_len, ext_counter)
             print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
             ext_counter += 1
 
+    def pypi_query(self, exts_list, full_path_name):
+        """ query pypi for package dependencies """
+        fname = Path(full_path_name).stem
+        print(f'digraph {fname} {{')
+        for ext in exts_list:
+            pkg = {'name': ext[0], 'version': ext[1], 'meta': {}}
+            status = self.get_package_info(pkg)
+            dot_name = self.normalize_project_name(pkg['name']);
+            if status == "not found":
+                print(f"  {dot_name}: not found in PyPi", file=sys.stderr)
+            else:
+                if 'meta' in pkg and len(pkg['meta']['requires']) > 0:
+                    package_list = ', '.join([f'{r[0]}' for r in pkg['meta']['requires']])
+                    dep_names = self.normalize_project_name(package_list)
+                    print(f"  {dot_name} -> {dep_names}")
+                else:
+                    print(f"  {dot_name}")
+        print('}')
 
-def main():
-    """ main """
+    def normalize_project_name(self, pkg_name):
+        """ DOT node names do not allow 'dash' or 'dots' "." in names """
+        pkg_name = pkg_name.replace('-', '_')
+        pkg_name = pkg_name.replace('.', '_')
+        return pkg_name
+
+def print_dependencies(eb):
+    """ Print dependencies data from dep_exts."""
+    for pkg in eb.dep_exts:
+        if len(pkg) == 3:
+            print('{} - {}: {}'.format(pkg[0], pkg[1], pkg[2]))
+        else:
+            print('{} - {}'.format(pkg[0], "missing Dict"))
+
+
+def setup_parser():
     parser = argparse.ArgumentParser(description='Update EasyConfig exts_list')
-
     parser.add_argument('--version', action='version', version='%(prog)s ' + 
                         __version__ + '  ' + __date__)
     parser.add_argument('-v', '--verbose', dest='verbose', required=False, 
@@ -527,26 +640,61 @@ def main():
                         help='Verbose; print lots of extra stuff')
     parser.add_argument('--debug', required=False, action='store_true',
                         help='set log level to debug, (default: false)')
-    parser.add_argument('--exts-description-r', action='store_true', 
-                        help='Output descrption for libraries in exts_list')
-    parser.add_argument('--exts-update-r', nargs='?', help='Update R extensions')
-    parser.add_argument('--exts-search-cran', action='store_true', help='output libray metadata from CRAN/BioConductor')
-    parser.add_argument('--exts-update-python', nargs='?', help='update Python extensions')
-    parser.add_argument('--exts-search-pypi', nargs='?', help='output library metadata from PyPi')
-    parser.add_argument('--exts-description-python', action='store_true', help='Output descrption for libraries in exts_list')
-    #parser.add_argument('easyconfig', metavar='EasyConfig file', help='EasyConfig file')
-    args = parser.parse_args()
+    # Create parent mutually exclusive group
+    group = parser.add_mutually_exclusive_group(required=True)
 
-    if args.exts_update_r or args.exts_description_r:
-        eb = FrameWork(args, args.exts_update_r, 'R')
-        UpdateR(args, eb)
-    elif args.exts_update_python or args.exts_description_python:
-        eb = FrameWork(args, args.exts_update_python, 'Python')
-        UpdatePython(args, eb)
-    elif args.exts_search_pypi:
-        print(f"Search PyPi for {args.exts_search_pypi}")
-        UpdatePython(args, None)
+    group.add_argument('--exts-update', dest='operation', action='store_const', const=(True, 'update'),
+                       metavar='easyconfig', help='update version info for exts_list in EasyConfig')
+    group.add_argument('--exts-dep-graph',  dest='operation', action='store_const', const=(True, 'dep_graph'),
+                       metavar='easyconfig',  help='print Graph dependancies for exts')
+    group.add_argument('--exts-description', dest='operation', action='store_const', const=(True, 'description'),
+                       metavar='easyconfig',  help='Output descrption for libraries in exts_list')
+    group.add_argument('--exts-search-cran', dest='operation', action='store_const', const=(False, 'search_cran'),
+                       metavar='Library', help='output libray metadata from CRAN/BioConductor')
+    group.add_argument('--exts-search-pypi', dest='operation', action='store_const', const=(False, 'search_pypi'),
+                       metavar='Library', help='output library metadata from PyPi')
+    parser.add_argument('value', nargs='?', help='Value for the selected operation')
+
+    return parser
+
+
+def process_arguments(args):
+    """Handle the parsed command line arguments"""
+    if not args.operation or not args.value:
+        parser.error("A value must be provided for the selected operation")
+        sys.exit(1)
+
+    is_file, operation = args.operation
+    argument = args.value
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    if 'version' in args:
+        print(args.version)
+    verbose = args.verbose
+    return (is_file, operation, verbose, argument)
+
+
+def main():
+    """ main """
+    parser = setup_parser()
+    args = parser.parse_args()
+    return process_arguments(args)
 
 
 if __name__ == '__main__':
-    main()
+    (is_file, operation, verbose, argument) = main()
+
+    if is_file:
+        no_dependencies = False
+        if operation in ['dep_graph', 'description']:
+            no_dependencies = True
+        eb = FrameWork(argument, verbose, no_dependencies)
+        print(' == update language: {} operation: {}'.format(eb.language, operation))
+        if 'update' in operation:
+            if eb.language == 'R':
+                UpdateR(argument, operation, verbose, eb)
+            elif eb.language == 'Python':
+                UpdatePython(argument, operation, verbose, eb)
+        elif operation == 'dep_graph':
+            if eb.language == 'Python':
+                UpdatePython(arg, operation, verbose, eb)
