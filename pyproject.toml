@@ -1,0 +1,24 @@
+[project]
+name = "easy_update"
+authors = [
+    {name = "John Dey"},
+]
+maintainers = [
+    {name = "John Dey"},
+]
+description = """Update language extension versions for EasyBuild easyconfig files. Used
+for modify easyconfigs with `exts_defaultclass` of PythonPackage or RPackage updating the 
+version field of the `exts_list`.
+Using public repos CRAN, Bioconductor, and PyPi for current package versions""" 
+summary = "Update language extension versions for EasyBuild easyconfig files, using CRAN, Bioconductor, and PyPi" 
+keywords = ["EasyBuild", "Scientific Software", "]
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: GPL 3",
+    "Operating System :: Linux",
+]
+dependencies = [
+    "requests>=2.24.0",
+    "packaging",
+]

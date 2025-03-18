@@ -2,14 +2,15 @@
 !CHANGELOG.md
 !README.md
 !Examples.md
+!annotate.py
+!constants.py
 !easy_update.py
 !easy_annotate.py
 !framework.py
 !GetLatestVersion.py
+!pyproject.toml
 !requirements.txt
 !updateexts.py
-!pep508_eval.py
-!constants.py
 !templates.py
 !updateR.py
 !updatePython.py

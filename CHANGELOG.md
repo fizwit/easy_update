@@ -3,6 +3,7 @@
 ### 2.3.0 03.17.2025
   - major refactor. Mostly works for R and Python. tested with fhR-4.4.2 and fhPython-3.11.3
   - remove all these anoying notes from the code and move to CHANGELOG.md
+  - create Bioconductor_packages class to read and storage Bioconductor packages
   - exts_processed_normalized added updatePython. Lets just store one name per Python project and 
     make the list flat for easy lookup.
   - add function: normalize_name(name): for Python
