@@ -1,4 +1,5 @@
 *
+!CHANGELOG.md
 !README.md
 !Examples.md
 !easy_update.py
@@ -7,12 +8,15 @@
 !GetLatestVersion.py
 !requirements.txt
 !updateexts.py
-!pep_508.py
+!pep508_eval.py
 !constants.py
 !templates.py
+!updateR.py
+!updatePython.py
 Debug
 Notes
 minimal-toolchains
 venv
+venv24
 lib/
 Project.md
