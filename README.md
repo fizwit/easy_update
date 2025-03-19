@@ -11,97 +11,66 @@ packages are found further within `exts_list`, they will will be treated as
 duplicates and removed.  If you are running easy update for the first time I would 
 suggest that you run it twice to ensure that the modules are in the correct order. 
 
-### Update notes November 2020
-easy_update will look for eb and search easyconfigs from EasyBuild. The primary search path will based on the path of the earyconfig being updated.
-
-### Update Notes March 2019
-*Easy_Update* now supports PythonPackage and RPackage easyconfigs. *Easy_Update* will read exts_list from
-R and Python easyconfig listed in the depencies of the R or Python package. Only the package name will
-be verifed from the dependent language. Version information will be updated for the priamry EasyConfig 
-R or Python easyconfig that is specified. The --add feature has been removed.
-
 ### Usage
-easy_update takes a single argument which is the path to an easyconfig file. The output is written to a new file;
-with the extension ".update".
+
+The main usage for easy_update is `--exts-update` which will update the version field of all extensions
+in `exts_list`. The output is written to a new file, with extension `.update`.
+ 
+#### Options
+  *  -h, --help          show this help message and exit
+  *  --version           show program's version number and exit
+  *  -v, --verbose       Verbose; print lots of extra stuff
+  *  --debug             set log level to debug, (default: false)
+  *  --exts-update *easy_config*  update version info for exts_list in EasyConfig
+  *  --exts-annotate *easy_config* Annotate all extensions from EasyConfig and dependencies. Output is Markdown
+  *  --exts-dep-graph *easy_config* print Graph dependancies for exts
+  *  --exts-description *easy_config* Output descrption for libraries in exts_list
+  *  --exts-search-cran *package_name* output libray metadata from CRAN/BioConductor
+  *  --exts-search-pypi *package_name* display library metadata from PyPi
+
 
 <dl>
-  <dd><b>Usage:</b> ./easy_update.py Python-2.7.12-foss-2016b.eb</dd>
+  <dd><b>Usage:</b> ./easy_update.py --exts-update Python-2.7.12-foss-2016b.eb</dd>
   <dd><b>Output:</b> Python-2.7.12-foss-2016b.update</dd>
 </dl>
 
-**Note:** When using BioConductor modules in easyconfig files the variable ``local_biocver`` must be set, otherwise
-BioConductor will not be searched. **Example** ``local_biocver = 3.11``.
+**Note:** When using BioConductor modules in easyconfig files the variable `local_biocver` or `biocver` must be set, otherwise
+BioConductor will not be searched. **Example** ``local_biocver = 3.20``.
 
-### Flags
+#### Verbose Flag
 
-* **--verbose** output the action that will be taken for each module along with the version number.
-    Possible actions are 'keep', 'update', 'dep', 'add' or 'duplicate'
-    'keep' no changes are needed
-    'update' there is a new version available for the package
-    'dep' A new package will be added as the result of finding dependencies
-    'duplicate'  A duplicate package name has been found
+Verbose output show how each library is handled. Possible actions are: ['keep', 'update', 'processed', 'duplicate']. Modules that are added show the dependancy. R lanuage extensions who `shy` they are dependent: ['Depends', 'Imports', 'LinkingTo']
 
-Verbose output explains why new dependencies are being added. Updating **breakaway**
-required adding **phyloseq**, which required **bioformat**.
+**tidyposterior Imports tune Imports dials Imports DiceDesign**
+
 ```
-                      pbs : 1.1                             (keep) [444, 316]
-                   RLRsim : 3.1-6 -> 3.1-8                (update) [444, 317]
-                   refund : 0.1-24                          (keep) [444, 318]
-               biomformat : 1.22.0 from phyloseq             (add) [444, 319]
-                 phyloseq : 1.38.0 from breakaway            (add) [444, 320]
-                breakaway : 3.0 -> 4.7.9                  (update) [444, 321]
+            collections : 0.3.7 Imports from EpiModel        (add) [730, 44]
+                 EpiModel : 2.4.0 -> 2.5.0                (update) [730, 44]
+...
+               DiceDesign : 1.10 Imports from dials          (add) [730, 126]
+                      sfd : 0.1.0 Imports from dials         (add) [730, 128]
+                    dials : 1.4.0 Imports from tune          (add) [730, 129]
+                 doFuture : 1.0.2 Imports from tune          (add) [730, 131]
+                    GPfit : 1.0-8 Imports from tune          (add) [730, 133]
+             sparsevctrs : 0.3.1 Imports from parsnip        (add) [730, 136]
+                  parsnip : 1.3.1 Imports from tune          (add) [730, 137]
+              modelenv : 0.2.0 Imports from workflows        (add) [730, 140]
+                workflows : 1.2.0 Imports from tune          (add) [730, 141]
+                yardstick : 1.3.2 Imports from tune          (add) [730, 143]
+              tune : 1.3.0 Imports from tidyposterior        (add) [730, 144]
+      workflowsets : 1.1.0 Imports from tidyposterior        (add) [730, 146]
+            tidyposterior : 1.0.1                           (keep) [730, 146]
 ```
 
 ### Python Notes
 Making sense of Pypi metadata can be problematic. 
-https://dustingram.com/articles/2018/03/05/why-pypi-doesnt-know-dependencies/
-Easy_Update processes info mation from Pypi.org. Most of the packing tools are designed
-for read setup.py files. The format for Requires_dist is speicified in PEP566
-
-### Note
-Easy Update makes many asumptions about the format of the easyconfig file. If
-only and update is being made the original text is preserved and only the
-version number is updated.  If a new package needs to be added then it is written
-using these conventions. All output is indented 4 spaces. Python easyconfigs are
-output in a multi line format.
-```
-    ('pep8', '1.7.1', {
-        'source_urls': ['https://pypi.python.org/packages/source/p/pep8/'],
-    }),
-    ('ndg-httpsclient', '0.4.4', {
-         'modulename': 'ndg.httpsclient',
-         'source_urls': ['https://pypi.python.org/packages/source/n/ndg-httpsclient'],
-         'source_tmpl': 'ndg_httpsclient-0.4.4.tar.gz',
-    }),
-```
-R modules are writte in a single line.  It is asumed that `ext_options` 
-and `bioconductor_options` are 
-defined outside of the `ext_list` declaration.
-```
-    ('packrat', '0.4.8-1'),
-    ('PKI', '0.1-5.1'),
-    ('rsconnect', '0.8.5'),
-    ('zlibbioc', '1.24.0'),
-    ('BiocGenerics', '0.24.0'),
-```
+Starting with the release of 2.3.0 `packaging` is used to parse and evalute the
+`requires_dist` metadata from PyPi.org. `requires_dist` format is defined in PEP508.
+Added PEP550 name normilization.
 
 ### TODO
 Integrate with EasyBuild FrameWork. Version two of EasyUpdate has been refactored to 
-seperate core update features from framework features. The new refactoring should 
+seperate core update features from framework features. The `framework.py` performs: reading/parsing
+easyconfig files, finding easyconfig files, rewritting easyconfig files, set easyblock type, create
+module names from `dependencies` list. The new refactoring should 
 make integration easier.
-
-Nov 2020
-Meta search features have been removed from easy_update. In a future relase they will be supported by a different application: meta_search.py.  All these flags are removed from easy_update
-
-* **--search** [modulename] Search is used to lookup a single module as an argument.  Search does not read or write to a file. Dependencies will be output if found. This is handy for checking new packages.
-Search requires the command line arguments; --pyver or --rver and --biocver to determine which repository to search.
-
-* **--meta** Display metadata available from the repository.  The output is very verbose and should be used for debugging purposes. The output is written to stdout.
-
-* **--Meta** Use with --search only. Output package metadata and exit.
-
-* **--tree** For use with --search option, output inverted dependancy tree for a package.
- 
-* **--pyver**  Only use in conjunction with search.  Specify only the major minor version numbers; --pyver 3.6.
-
-* **--rver, --biocver** Only use in conjunction with search.  Specify only the major minor version numbers
