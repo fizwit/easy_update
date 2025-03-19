@@ -15,8 +15,8 @@ from framework import FrameWork
 from updateR import UpdateR
 from updatePython import UpdatePython
 
-__version__ = '2.3.0'
-__date__ = 'March  2025'
+__version__ = '2.3.1'
+__date__ = 'March  19, 2025'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
 

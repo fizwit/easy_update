@@ -184,7 +184,7 @@ class FrameWork:
         self.base_paths.append(local_path)
         eb_root = os.getenv('EBROOTEASYBUILD')
         if eb_root is None:
-            logging.error('Could not find path to EasyBuild Root, EasyBuild module must be loaded')
+            logging.error('$EBROOTEASYBUILD environment variable must be defined.')
             sys.exit(1)
         else:
             self.base_paths.append(os.path.join(eb_root, 'easybuild/easyconfigs'))
