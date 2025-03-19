@@ -19,12 +19,6 @@ __version__ = '2.3.0'
 __date__ = 'March  2025'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 
-logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
-                    level=logging.DEBUG)
-logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
-                    level=logging.WARN)
-logging.basicConfig(format='%(message)s', level=logging.INFO)
-
 
 def setup_parser():
     parser = argparse.ArgumentParser(description='Update EasyConfig exts_list')

@@ -51,31 +51,6 @@ class UpdatePython(UpdateExts):
                                    'functools32', 'enum34', 'future', 'configparser']
             self.updateexts()
             eb.print_update('Python', self.exts_processed)
-            # self.print_update()
-
-    def py_write_exts_list(self):
-        """ print update information for Python """
-        print('Python Update Information')
-        simple_fmt = "    " + "('{}', '{}'),"
-        pkg_fmt = "    " + "('{}', '{}', {{"
-        item_fmt = "        " + "'%s': %s,"
-        quoted_item_fmt = "        " + "'%s': '%s',"
-        print('exts_list = [')
-        for extension in self.exts_processed:
-            name = extension['name']
-            if extension['action'] in ['duplicate', 'processed']:
-                continue
-            if 'spec' in extension:
-                print(pkg_fmt.format(name, extension['version']))
-                for item in extension['spec'].keys():
-                    if type(extension['spec'][item]) is list:
-                        print(item_fmt % (item, extension['spec'][item]))
-                    else:
-                        print(quoted_item_fmt % (item, extension['spec'][item]))
-                print("    }),")
-            else:
-                print(simple_fmt.format(name, extension['version']))
-        print(']')
 
     def display_pypi_meta(self, pypi_project_name):
         """ display metadata from PyPi
@@ -150,12 +125,12 @@ class UpdatePython(UpdateExts):
             info = project['info']
         else:
             return
-        print("{}: {}".format(info['name'], info['version']))
+        print(f"{info['name']}: {info['version']}")
         for key in info:
             if key == 'description':
-                print("    %s: %s" % (key, info[key][1:60]))
+                print(f"    %s: %s" % (key, info[key][1:60]))
             else:
-                print('    {}: {}'.format(key, json.dumps(info[key], indent=4)))
+                print(f"    {key}: {json.dumps(info[key], indent=4)}")
         print('===')
 
     def pypi_requires_dist(self, name, requires_dist):
@@ -187,7 +162,7 @@ class UpdatePython(UpdateExts):
         if 'version' in pkg['meta']:
             version = pkg['meta']['version']
         else:
-            print('no version info! for {}'.format(pkg['name']))
+            print(f'no version info! for {pkg['name']}')
         for ver in project['releases'][version]:
             if 'packagetype' in ver and ver['packagetype'] == 'sdist':
                 pkg['meta']['url'] = ver['url']
@@ -212,31 +187,34 @@ class UpdatePython(UpdateExts):
         if 'filename' not in pkg['meta']:
             return
         filename = pkg['meta']['filename']
-        source_targz = "{}-{}.tar.gz".format(pkg['name'], pkg['version'])
+        template = None
+        name = pkg['name']
+        version = pkg['version']
+        source_targz = f"{name}-{version}.tar.gz"
         if source_targz == filename:
             return   # no need to check further
-        template = None
+        
         if '-' in pkg['name']:
-            dash_targz = "{}-{}.tar.gz".format(pkg['name'].replace('-', '_'), pkg['version'])
+            dash_targz = f"{name.replace('-', '_')}-{version}.tar.gz"
             if dash_targz == filename:
-                template = "{}-%(version)s.tar.gz".format(pkg['name'].replace('-', '_'))
+                template = f"{name.replace('-', '_')}-%(version)s.tar.gz"
         if '.' in pkg['name']:
-            dot_targz = "{}-{}.tar.gz".format(pkg['name'].replace('.', '_'), pkg['version'])
+            dot_targz = f"{name.replace('.', '_')}-{version}.tar.gz"
             if dot_targz == filename:
-                template = "{}-%(version)s.tar.gz".format(pkg['name'].replace('.', '_'))
-        if any(map(str.isupper, pkg['name'])):
-            lower_targz = "{}-{}.tar.gz".format(pkg['name'].lower(), pkg['version'])
+                template = f"{name.replace('.', '_')}-%(version)s.tar.gz"
+        if any(map(str.isupper, name)):
+            lower_targz = f"{name.lower()}-{version}.tar.gz"
             if lower_targz == filename:
-                template = "{}-%(version)s.tar.gz".format(pkg['name'].lower())
-        if 'zip' in filename and filename == "{}-{}.zip".format(pkg['name'], pkg['version']):
+                template = f"{name.lower()}-{version}s.tar.gz"
+        if 'zip' in filename and filename == f"{name}-{version}.zip":
             template = "%(name)s-%(version)s.zip"
-        if 'tar.bz2' in filename and filename == "{}-{}.tar.bz2".format(pkg['name'], pkg['version']):
+        if 'tar.bz2' in filename and filename == f"{name}-{version}.tar.bz2":
             template = "%(name)s-%(version)s.tar.bz2"
         if not template:
-            print(f"WARNING: {pkg['name']} filename does not match templates. {filename}")
+            print(f"WARNING: {name} filename does not match templates. {filename}")
         if 'spec' not in pkg:
             pkg['spec'] = {'source_tmpl': template}
-            print(f"WARNING: {pkg['name']} filename does not have a spec.")
+            print(f"WARNING: {name} filename does not have a spec.")
         else:
             pkg['spec']['source_tmpl'] = template
 
@@ -317,15 +295,14 @@ class UpdatePython(UpdateExts):
         """Python version
         this method is used with --search, otherwise, framework is used
         """
-        pkg_fmt = self.indent + "('{}', '{}', {{\n"
-        item_fmt = self.indent + self.indent + "'%s': '%s',\n"
+        space = " "
         if 'spec' in pkg:
-            output = pkg_fmt.format(pkg['name'], pkg['version'])
+            output = f"('{pkg['name']}', '{pkg['version']}"
             for item in pkg['spec'].keys():
-                output += item_fmt % (item, pkg['spec'][item])
-            output += self.indent + "}),"
+                output += f"{space:8}('{item}', '{pkg['spec'][item]}', {{" 
+            output += f"{space:4}}}),"
         else:
-            output = self.indent + "('{}', '{}'),".format(pkg['name'], pkg['version'])
+            output = f"{space:4}('{pkg['name']}', '{pkg['version']}'),"
         return output
 
     def exts_description(self, exts_list):
@@ -340,8 +317,8 @@ class UpdatePython(UpdateExts):
                 ext_description = 'Package Not Found in PyPi'
             else:
                 ext_description = project['info']['summary']
-            counter = '[{}, {}]'.format(ext_list_len, ext_counter)
-            print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
+            counter = f"[{ext_list_len}, {ext_counter}]"
+            print(f"{counter:10} {pkg['name']}-{pkg['version']} : {ext_description}")
             ext_counter += 1
 
     def pypi_query(self, exts_list, full_path_name):
@@ -367,9 +344,9 @@ class UpdatePython(UpdateExts):
         """ Print dependencies data from dep_exts."""
         for pkg in eb.dep_exts:
             if len(pkg) == 3:
-                print('{} - {}: {}'.format(pkg[0], pkg[1], pkg[2]))
+                print(f"{pkg[0]} - {pkg[1]}: {pkg[2]}")
             else:
-                print('{} - {}'.format(pkg[0], "missing Dict"))
+                print(f"{pkg[0]} - missing Dictionary")
 
 
 def normalize_name(name):

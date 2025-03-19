@@ -1,19 +1,5 @@
 # easy_update Release Notes
 
-### 2.3.0 03.17.2025
-  - major refactor. Mostly works for R and Python. tested with fhR-4.4.2 and fhPython-3.11.3
-  - remove all these anoying notes from the code and move to CHANGELOG.md
-  - create Bioconductor_packages class to read and storage Bioconductor packages
-  - exts_processed_normalized added updatePython. Lets just store one name per Python project and 
-    make the list flat for easy lookup.
-  - add function: normalize_name(name): for Python
-  - fix bug in framework.print_update 
-  - move function add_to_python_dep_exts to updatePython. (but its not part of the Class)
-  - fold easy_annotate into easy_update as a class which extends updateR, TODO add to updatePython
-    `--exts-annotate` is new but only works with R currently
-  - fix `--exts-description` for updatePython. Broken with updateR
-  - replace pep508 with packaing. Works much better
-
 ### 2.2.3 refactor command line arguments one more time.
 
   - `--exts-update` will detect language (R or Python)
@@ -168,6 +154,24 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
    pyncacl -> PyNaCl
 ```
 
+
+## updateexts.py
+
+### 2.0.1 2019.03.08
+Improve parse_pypi_requires to remove 'dev', 'tests' and
+   'docs' related dependencies. Dependencies for pytest when fom 173 packages
+   to 27. --Meta and --tree have been added as options to help with debugging
+   Python dependencies.
+
+### 2.0.0 2019-02-26
+  
+  New feature to resolve dependent packages
+   for R and Python bundles. Read exts_list for R and Python listed in
+    dependencies. Refactor code into Two major classes: FrameWork and
+    UpdateExts. Rename subclasses for for R and Python: UpdateR UpdatePython.
+    This will help with migration into the EB FrameWork.
+    Fix bug with pkg_update counter
+
 ### 1.3.0 July 2018
   * update to use pypi.org JSON API
   ```
@@ -175,12 +179,50 @@ AttributeError: 'NoneType' object has no attribute 'dep_exts'
   Release API: GET /pypi/<project_name>/<version>/json
   ```
 
-## updateexts.py
+# framework.py
 
-  * 2.0.0 2019-02-26
-  New feature to resolve dependent packages
-   for R and Python bundles. Read exts_list for R and Python listed in
-    dependencies. Refactor code into Two major classes: FrameWork and
-    UpdateExts. Rename subclasses for for R and Python: UpdateR UpdatePython.
-    This will help with migration into the EB FrameWork.
-    Fix bug with pkg_update counter
+### 1.0.6 2.28.2025 - 1.0.6
+    * replace find(name) with find("'"+name+"'") to avoid finding substrings
+    
+    
+### 1.0.5 11.10.2024 
+  * Add back in the ability to read the EasyConfig file to determine the language.
+  * Enable the "description" feature
+
+### 1.0.4 01.11.2022
+  * no long try to guess the language by reading the EasyConfig. Lang must be speicified as a command line argument.
+  * remove "detect_language"
+  * only call "framework" if an EasyConfig needs updating
+  * Add  "templates.py" from EasyBuild Framework
+
+### 1.0.3 16.12.2020  (Beethoven's 250th birthday)
+  *  R does not have an easyblock, so don't check for one.
+
+###  1.0.2  21.11.2020
+  * Fix issue with not being able to read Python dependancies for minimal toolchain. Python-3.7.3-foss-2019b.eb should be Python-3.7.4-GCCcore-8.3.0.eb
+
+  * Require EasyBuild to be loaded. Use "eb" path to find easybuild/easyconfigs
+
+    <find_easyconfig> now supports a list of paths, $PWD plus EasyBuild easyconfig path
+    search easyconfig asumes slphabet soup of directory names.
+    ie: SciPy-bundle-2020.06-foss-2020a-Python-3.8.2.eb will be search for in the directory: s/SciPy-bundle
+    <build_dep_filename> now supports a list of file names based on minimal toolchain
+
+    add logging.debug()
+
+### 1.0.1  15.08.2019
+    fix search_dependencies
+    For the case of reading Python dependancies, conver the
+    case of 'Biopython-1.74-foss-2016b-Python-3.7.4'
+    Search dependcies for versionsuffix == '-Python-%(pyver)s'
+    add dep_exts are exts_list from dependent packages
+
+    - remove the variable dep_eb
+    - All to resolve dependancie in the FrameWork, FrameWork only
+      needs a single argument. It had three.
+
+### 1.0.0 07.08.2019
+    framework.py becomes seperate package. Share code
+    between easy_update and easy_annotate
+
+  * Read exts_list for R and Python listed in dependencies.

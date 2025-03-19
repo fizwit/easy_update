@@ -182,10 +182,6 @@ class UpdateR(UpdateExts, Annotate):
             else:
                 print("%s: %s" % (tag, meta[tag]))
 
-    def output_module(self, pkg):
-        """ print module information for exts_list """
-        return "%s('%s', '%s'),".format(self.indent, pkg['name'], pkg['version'])
-
     def is_not_used(self):
         pass
 
@@ -196,18 +192,18 @@ class UpdateR(UpdateExts, Annotate):
         """
         ext_list_len = len(exts_list)
         ext_counter = 1
+        pkg = {}
         for ext in exts_list:
             if isinstance(ext, tuple):
                 pkg = {'name': ext[0], 'version': ext[1], 'meta': {}}
             else:
                 continue
-            status = self.get_package_info(pkg)
-            counter = '[{}, {}]'.format(ext_list_len, ext_counter)
-            if status == "not found":
+            project = self.get_package_info(pkg)
+            if project == "not found":
                 ext_description = 'Package Not Found in CRAN'
-                print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
             else:
-                ext_description = pkg['info']['Title']
-                print('{:10} {}-{} : {}'.format(counter, pkg['name'], pkg['version'], ext_description))
                 self.dotGraph[str(pkg['name'])] = pkg
+                ext_description = pkg['info']['Title']
+            counter = f"[{ext_list_len}, {ext_counter}]"
+            print(f"{counter:10} {pkg['name']}-{pkg['version']} : {ext_description}")
             ext_counter += 1

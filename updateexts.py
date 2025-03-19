@@ -51,24 +51,22 @@ class UpdateExts:
         updated July 2018
         """
         if pkg['action'] == 'update':
-            version = '{} -> {}'.format(pkg['orig_version'], pkg['version'])
+            version = f"{pkg['orig_version']} -> {pkg['version']}"
         elif pkg['action'] == 'add':
             from_pkg, method = pkg['from']
-            version = '{} {} from {}'.format(pkg['version'], method, from_pkg)
+            version = f"{pkg['version']} {method} from {from_pkg}"
         else:
             version = pkg['version']
         name = pkg['name']
-        action = '(%s)' % pkg['action']
+        action = f"({pkg['action']})"
         merge = name + ' : ' + version
         if len(name) > 25 and len(name) + len(version) < 53:
-            print('{:53} {:>12} [{}, {}]'.format(merge, action,
-                  self.ext_list_len, self.ext_counter))
+            print(f"{merge:53} {action:>12} [{self.ext_list_len}, {self.ext_counter}]")
         elif len(version) > 25 and len(name) + len(version) < 53:
-            print('{:>53} {:>12} [{}, {}]'.format(merge, action,
-                  self.ext_list_len, self.ext_counter))
+            print(f"{merge:>53} {action:>12} [{self.ext_list_len}, {self.ext_counter}]")
         else:
-            tmpl = '{:>25} : {:<25} {:>12} [{}, {}]'
-            print(tmpl.format(name, version, action, self.ext_list_len, self.ext_counter))
+            tmpl = f"{name:>25} : {version:<25} {action:>12} [{self.ext_list_len}, {self.ext_counter}]"
+            print(tmpl)
 
     def check_package(self, pkg):
         """query package authority [Pypi, CRAN, Bio] to get the latest version
@@ -158,44 +156,19 @@ class UpdateExts:
         if self.verbose:
             self.stats()
 
-    def exts_description(self):
-        """ Print library description from CRAN metadata for each extension in exts_list.
-
-        This method iterates over the exts_orig list and retrieves the package information for each extension.
-        It then prints the package name, version, and description based on the selected programming language.
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        for pkg in self.exts_orig:
-            status = get_package_info(pkg)
-            print("{}".format(pkg[0]))
-            if self.language== 'Python':
-                ext_description = pkg['meta']['summary']
-            elif self.language== 'R':
-                ext_description = pkg['meta']['info']['Description']
-            merge = pkg['name'] + ' : ' + pkg['version']
-            counter = '[{}, {}]'.format(self.ext_list_len, self.ext_counter)
-            print('{:10} {:53} {}'.format(counter, merge, ext_description))
-
     def printDotGraph(self, dotGraph):
-        print("digraph {} {{".format(self.name))
-        print('{};'.format(self.name))
+        print(f"digraph {self.name} {{")
+        print(f"{self.name};")
         for p in dotGraph.keys():
-            print('"{}";'.format(p))
+            print(f'"{p}";')
         for p in dotGraph.keys():
-            print('"{}" -> "{}";'.format(self.name, p))
+            print(f'"{self.name}" -> "{p}";')
             for dep, method in dotGraph[p]['meta']['requires']:
-                print('"{}" -> "{}";'.format(p, dep))
+                print(f'"{p}" -> "{dep}";')
         print("}")
 
     def stats(self):
         print(f"== Updated Packages: {self.pkg_updated}")
         print(f"== New Packages: {self.pkg_new}")
         print(f"== Dropped Packages: {self.pkg_duplicate}")
-
-    def get_package_info(self, pkg):
-        pass
+        print(f"== Total Packages: {self.ext_list_len}")

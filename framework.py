@@ -74,7 +74,7 @@ class FrameWork:
             print('== Python EasyConfig without version')
             sys.exit(1)
         self.search_dependencies(eb.dependencies)
-
+        self.debug_print_dependencies()
         self.modulename = eb.name + '-' + eb.version
         self.modulename += '-' + eb.toolchain['name']
         self.modulename += '-' + eb.toolchain['version']
@@ -268,7 +268,6 @@ class FrameWork:
             logging.debug('dependency file name: %s', dep_filenames)
             dep_eb = self.parse_eb(str(easyconfig_path), False)
             if self.language == 'Python':
-                print(f'== adding deps lang: {self.language} dep: {(os.path.basename(easyconfig_path))}')
                 add_to_python_dep_exts(dep_eb, easyconfig_path, self.dep_exts)
             elif self.language == 'R':
                 if 'exts_list' in dep_eb.__dict__:
