@@ -1,5 +1,11 @@
 # easy_update Release Notes
 
+### 2.3.1 fix output - the rewritting of easyconfigs. 'name' -> "'name'" fixed most issues. Package name 
+    substring matches were makeing a mess.
+    sepeate all classes into seperate files.
+  - replace pep508 eval with packages.Meta
+  - Replace .format() with fstrings
+
 ### 2.2.3 refactor command line arguments one more time.
 
   - `--exts-update` will detect language (R or Python)
