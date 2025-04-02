@@ -74,7 +74,6 @@ class FrameWork:
             print('== Python EasyConfig without version')
             sys.exit(1)
         self.search_dependencies(eb.dependencies)
-        self.debug_print_dependencies()
         self.modulename = eb.name + '-' + eb.version
         self.modulename += '-' + eb.toolchain['name']
         self.modulename += '-' + eb.toolchain['version']
