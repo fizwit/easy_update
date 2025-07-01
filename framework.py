@@ -3,25 +3,20 @@
 import os
 import sys
 import types
+import re
 import logging
 from templates import TEMPLATE_CONSTANTS
 from constants import EASYCONFIG_CONSTANTS
 from updatePython import add_to_python_dep_exts
 
-# from easybuild.tools.toolchain.constants import ALL_MAP_CLASSES
-# from easybuild.framework.easyconfig.templates import TEMPLATE_CONSTANTS
-
 """
-
+    framework.py provides functionality to parse EasyConfig files.
 """
+logger = logging.getLogger()
 
 __version__ = '1.0.5'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
 __date__ = 'Oct 10, 2024'
-
-logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
-                    level=logging.WARN)
-# logging.getLogger().setLevel(logging.DEBUG)
 
 
 class FrameWork:
@@ -42,6 +37,7 @@ class FrameWork:
         self.modulename = None
         self.dep_exts = []
         self.exts_list = []
+        self.base_paths = []
         self.find_easyconfig_paths(easyconfig)
         logging.debug("EasyConfig search paths: {}".format(self.base_paths))
 
@@ -49,7 +45,10 @@ class FrameWork:
         self.eb_header = self.build_eb_header_constant()
 
         eb = self.parse_eb(easyconfig, primary=True)
-        self.exts_list = eb.exts_list
+        if 'exts_list' in eb.__dict__:
+            self.exts_list = eb.exts_list
+        else:
+            self.exts_list = None
         self.toolchain = eb.toolchain
         self.name = eb.name
         self.version = eb.version
@@ -60,31 +59,32 @@ class FrameWork:
                             'version': self.version,
                             'pyver': self.pyver,
                             'rver': self.rver,
+                            'javaver': "",
                             'cudaver': ""}
-        if no_dependencies:
-            return
-        if 'versionsuffix' in eb.__dict__:
+
+        if self.language in ['R', 'Python'] and 'versionsuffix' in eb.__dict__:
             self.versionsuffix = eb.versionsuffix % self.interpolate
         else:
             self.versionsuffix = None
         if self.language == 'R' and self.rver is None:
             print('== R EasyConfig without version')
-            sys.exit(1)
         elif self.language == 'Python' and self.pyver is None:
-            print('== Python EasyConfig without version')
-            sys.exit(1)
-        self.search_dependencies(eb.dependencies)
+            print(f"== Python EasyConfig with no pyver {self.name}-{self.version}")
+        # search for dependencies
+        if no_dependencies:
+            return
+        if 'dependencies' in eb.__dict__:
+            self.search_dependencies(eb.dependencies)
+        else:
+            logging.warn('No dependencies defined! for: %s-%s', self.name, self.version)
+            self.dependencies = None
         self.modulename = eb.name + '-' + eb.version
         self.modulename += '-' + eb.toolchain['name']
         self.modulename += '-' + eb.toolchain['version']
         if self.versionsuffix:
             self.modulename += self.versionsuffix
         logging.debug('modulename: %s' % self.modulename)
-        self.dependencies = None
-        try:
-            self.dependencies = eb.dependencies
-        except AttributeError:
-            logging.WARN('WARNING: no dependencies defined!')
+        
         try:
             self.biocver = eb.local_biocver
         except AttributeError:
@@ -106,12 +106,14 @@ class FrameWork:
             sys.exit(1)
 
         # Define a safe execution environment
-        safe_globals = {"__builtins__": None}
         safe_locals = eb.__dict__
         try:
             exec(self.eb_header + code, safe_locals)
         except Exception as err:
-            logging.error('interperting EasyConfig error: %s' % err)
+            logging.error('interperting %s EasyConfig error: %s', file_name, err)
+            fname = os.path.basename(file_name)[:-3]
+            with open(fname + '.err', "w") as f:
+                code = f.write(self.eb_header + code)
             sys.exit(1)
         if primary:     # save original text of source code
             self.code = code
@@ -119,13 +121,25 @@ class FrameWork:
 
     def find_language_version(self, eb):
         """
-            find the language and version from the EasyConfig file """
+            find the language and version from the EasyConfig file 
+        """
+        if 'easyblock' not in eb.__dict__:
+            self.easyblock = None
+        else:
+            self.easyblock = eb.easyblock
+        if 'exts_defaultclass' not in eb.__dict__:
+            self.exts_defaultclass = None
+        else:
+            self.exts_defaultclass = eb.exts_defaultclass        
         if (eb.name == 'Python' or
-            ('easyblock' in eb.__dict__ and eb.easyblock == 'PythonBundle' or eb.easyblock == 'PythonPackage') or
-            ('exts_defaultclass' in eb.__dict__ and eb.exts_defaultclass == 'PythonPackage')
-            ):
-            print('== Python EasyConfig')
+            (self.easyblock == 'PythonBundle' or self.easyblock == 'PythonPackage') or
+            (self.exts_defaultclass == 'PythonPackage')):
             self.language = 'Python'
+            self.py_module_name = None
+            if 'exts_default_options' in eb.__dict__ and 'modulename' in eb.exts_default_options:
+                self.py_module_name = eb.exts_default_options['modulename']
+            if 'options' in eb.__dict__ and 'modulename' in eb.options:
+                self.py_module_name = eb.options['modulename']
             if self.name == 'Python':
                 self.pyver = eb.version
             else:
@@ -133,12 +147,13 @@ class FrameWork:
                     if dep[0] == 'Python':
                         self.pyver = dep[1]
                         break
-        elif (eb.name == 'R' or
-              ('easyblock' in eb.__dict__ and eb.easyblock == 'RPackage') or
-              ('exts_defaultclass' in eb.__dict__ and eb.exts_defaultclass == 'RPackage')
-              ):
+            if self.pyver is None and 'local_pyshortver' in eb.__dict__:
+                # only used for pyvips
+                self.pyver = eb.local_pyshortver
+        elif eb.name == 'R' or self.easyblock == 'RPackage' or self.exts_defaultclass == 'RPackage':
             self.language = 'R'
             if self.name == 'R':
+                self.easyblock = 'R'
                 self.rver = eb.version
             else:
                 for dep in eb.dependencies:
@@ -146,10 +161,7 @@ class FrameWork:
                         self.rver = dep[1]
                         break
         else:
-            msg = """Unknown language exts_list type. Expecting Python or R based easyconfig
-    easyblock: ['PythonBundle', 'RPackage'] or
-    exts_defaultclass: ['PythonPackage', 'RPackage']"""
-            print('Error: {} {}'.format(eb.name, msg))
+            self.language = None
 
     def build_eb_header_constant(self):
         """ build a string of constants from the EasyConfig file
@@ -168,26 +180,24 @@ class FrameWork:
         userPath = os.path.expanduser(filename)
         fullPath = os.path.abspath(userPath)
         (head, tail) = os.path.split(fullPath)
-        self.base_paths = []
         local_path = None
         while tail:
             if 'easyconfigs' in tail:
-                self.base_paths.append(os.path.join(head, tail))
-                logging.debug('local path to easyconfigs: {}'.format(self.base_paths[-1]))
-                local_path = head + '/' + tail
+                local_path = os.path.join(head, tail)
+                self.base_paths.append(local_path)
+                logging.debug('local path to easyconfigs: {}'.format(local_path))
                 break
             (head, tail) = os.path.split(head)
         if local_path is None:
             logging.error('You are not working in an EB repository, Quiting because I can not find dependancies.')
             sys.exit(1)
-        self.base_paths.append(local_path)
         eb_root = os.getenv('EBROOTEASYBUILD')
         if eb_root is None:
             logging.error('$EBROOTEASYBUILD environment variable must be defined.')
             sys.exit(1)
         else:
             self.base_paths.append(os.path.join(eb_root, 'easybuild/easyconfigs'))
-        logging.debug('easyconfig search paths: {}'.format(self.base_paths))
+        logging.debug("easyconfig search paths: %s", self.base_paths)
 
     def find_easyconfig(self, name, easyconfigs):
         """ search base_paths for easyconfig filename """
@@ -195,12 +205,12 @@ class FrameWork:
         first_letter = easyconfigs[0][0].lower()
         for easyconfig in easyconfigs:
             for ec_dir in self.base_paths:
-                narrow = ec_dir + '/' + first_letter + '/' + name
-                logging.debug('find_easyconfig: search for {} in {} '.format(easyconfig, narrow))
-                for r,d,f in os.walk(narrow):
+                narrow = os.path.join(ec_dir, first_letter, name)
+                logging.debug('find_easyconfig: search for %s in %s ', easyconfig, narrow)
+                for root,d,f in os.walk(narrow):
                     for filename in f:
                         if filename == easyconfig:
-                            found = os.path.join(r,filename)
+                            found = os.path.join(root,filename)
                             return found
         return None
 
@@ -236,7 +246,7 @@ class FrameWork:
             '13.3.0': toolchains[10], '2024a': toolchains[10],
         }
         prefix = dep[0] + '-' + dep[1]
-        if (len(dep)) == 4 and dep[3] == 'System toolchain':
+        if (len(dep)) == 4 and dep[3] == 'SYSTEM':
             dep_filenames = prefix + '.eb'
             return [dep_filenames]
         tc_version = self.toolchain['version']
@@ -245,8 +255,9 @@ class FrameWork:
             sys.exit(1)
         dep_filenames = []
         for tc in tc_versions[tc_version]:
-            if len(dep) > 2 and dep[2] == 'versionsuffix':
-                dep_filenames.append('{}-{}{}.eb'.format(prefix, tc, self.versionsuffix))
+            if len(dep) == 3:
+                versionsuffix = dep[2] % self.interpolate
+                dep_filenames.append('{}-{}{}.eb'.format(prefix, tc, versionsuffix))
             else:
                 dep_filenames.append('{}-{}.eb'.format(prefix, tc))
         return dep_filenames
@@ -274,7 +285,6 @@ class FrameWork:
             if self.verbose:
                 print('== adding dependencies: {}'.format(os.path.basename(easyconfig_path)))
 
-
     def check_eb_package_name(self, filename):
         """" check that easybuild filename matches package name
         easyconfig is original filename
@@ -286,8 +296,24 @@ class FrameWork:
 
     def write_chunk(self, indx):
         self.out.write(self.code[self.ptr_head:indx])
-        # print(f"{self.code[self.ptr_head:indx]}", end='')
         self.ptr_head = indx
+
+    def remove_checksum(self):
+        """ remove checksum from exts_list entry
+        if the version is updated, the checksum is no longer valid
+        """
+        # print(f"== removing checksum from {self.code[self.ptr_head:self.ptr_head+20]}")
+        checksum_pattern = r"\s*'checksums':\s*\['[a-zA-Z0-9]{64}'\],.*"
+        end_index = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
+        if end_index == -1:
+            logging.error("No checksum found in exts_list entry")
+            sys.exit(1)
+        if "'checksums':" not in self.code[self.ptr_head:end_index]:
+            self.write_chunk(end_index)
+        else:
+            new_body = re.sub(checksum_pattern, '', self.code[self.ptr_head:end_index])
+            self.out.write(new_body)
+            self.ptr_head = end_index
 
     def output_module(self, lang, pkg):
         """write exts_list entry
@@ -318,12 +344,13 @@ class FrameWork:
     def rewrite_extension_name(self, pkg):
         """ rewrite exts_list 'name' without change """
         target = f"'{pkg['name']}', "
+        logging.debug("target: %s body: %s", target, self.code[self.ptr_head:self.ptr_head+50])
         name_index = self.code[self.ptr_head:].find(target)
         if name_index == -1:
             logging.error('No name found for %s', pkg['name'])
-            print(f"body: {self.code[self.ptr_head:]}")
             sys.exit(1)
         self.write_chunk(name_index+self.ptr_head+len(target))
+        # self.ptr_head += len(target)
 
     def rewrite_extension(self, pkg):
         """ rewrite exts_list entry without change """
@@ -333,18 +360,19 @@ class FrameWork:
 
     def update_extension(self, pkg):
         """ rewrite exts_list entry with updated version """
+        logging.debug("name: %s version: %s body: >%s<", pkg["name"], pkg["version"],
+                      self.code[self.ptr_head:self.ptr_head+20])
         self.rewrite_extension_name(pkg)
-    
-        version_string = f"'{pkg['orig_version']}'"
-        orig_ver_index = self.code[self.ptr_head:].find(version_string)
+        orig_string = f"'{pkg['orig_version']}', "
+        orig_ver_index = self.code[self.ptr_head:].find(orig_string)
         if orig_ver_index == -1:
-            logging.error('No version found for %s', pkg['name'])
+            logging.error("No version found for %s body: %s",
+                          pkg['name'], self.code[self.ptr_head:self.ptr_head+20])
             sys.exit(1)
-        new_version = f"'{pkg['version']}'"
+        new_version = f"'{pkg['version']}', "
         self.out.write(new_version)
-        self.ptr_head += len(version_string)
-        indx = self.code[self.ptr_head:].find('),') + self.ptr_head + 3
-        self.write_chunk(indx)
+        self.ptr_head += len(orig_string)
+        self.remove_checksum()
 
     def print_update(self, lang, exts_processed):
         """ this needs to be re-written in a Pythonesque manor
@@ -354,30 +382,31 @@ class FrameWork:
         self.write_chunk(indx + 14)
 
         for extension in exts_processed:
+            ptr = self.ptr_head
+            logging.debug("extension: %s body: %s", extension['name'], self.code[ptr:ptr+32])
             name = extension['name']
             if 'action' not in extension:
                 logging.error('No action for library %s', name)
                 sys.exit(1)
-
             if lang.lower() == lang:
                 # special case for bundles, if "name" is used in exts_list
                 indx = self.code[self.ptr_head:].find('),') + 2
                 indx += self.ptr_head
                 self.write_chunk(indx)
             elif extension['from'] == 'base':  # R base library with no version
-                indx = self.code[self.ptr_head:].find("'"+name+"'")
+                indx = self.code[self.ptr_head:].find(f"'{name}',")
                 indx += self.ptr_head + len(name) + 3
                 self.write_chunk(indx)
             elif extension['action'] == 'keep':
                 self.rewrite_extension(extension)
             elif extension['action'] == 'update':
                 self.update_extension(extension)
-            elif extension['action'] in ['processed', 'duplicate']:
+            elif extension['action'] in ['processed', 'duplicate', 'reordered']:
+                print(f"== extension {name} is {extension['action']}, skipping")
                 name_indx = self.code[self.ptr_head:].find(f"'{name}', ")
                 name_indx += self.ptr_head + len(name) + 4
                 indx = self.code[name_indx:].find('),') + name_indx + 3
                 self.ptr_head = indx
-                continue
             elif extension['action'] in ['add', 'dep']:
                 output = self.output_module(lang, extension)
                 self.out.write("%s\n" % output)

@@ -46,6 +46,7 @@ EXTERNAL_MODULE_MARKER = 'EXTERNAL_MODULE'
 
 # from easybuild.tools.systemtools import get_os_type, KNOWN_ARCH_CONSTANTS
 KNOWN_ARCH_CONSTANTS = ('aarch64', 'ppc64le', 'riscv64', 'x86_64')
+MODULE_LOAD_ENV_HEADERS = 'CPP_HEADERS'
 
 
 def get_os_version():
@@ -132,6 +133,7 @@ EASYCONFIG_CONSTANTS = {
     'OS_TYPE': get_os_type(), 
     'OS_NAME': get_os_name(),
     'OS_VERSION': get_os_version(),
+    'MODULE_LOAD_ENV_HEADERS': (MODULE_LOAD_ENV_HEADERS, "Environment variables with search paths to CPP headers"),
     'SYS_PYTHON_VERSION': platform.python_version(),
     'SYSTEM': "System toolchain",
     'OS_PKG_IBVERBS_DEV': ('libibverbs-dev', 'libibverbs-devel', 'rdma-core-devel'),

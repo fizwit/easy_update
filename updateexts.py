@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
    updateexts.py
@@ -8,6 +8,7 @@
 """
 
 import logging
+logger = logging.getLogger()
 
 __version__ = '2.0.7'
 __maintainer__ = 'John Dey jfdey@fredhutch.org'
@@ -26,6 +27,7 @@ class UpdateExts:
         self.pkg_updated = 0
         self.pkg_new = 0
         self.pkg_duplicate = 0
+        self.pkg_reordered = 0
         self.indent_n = 4
         self.indent = ' ' * self.indent_n
         self.ext_list_len = 1
@@ -35,6 +37,8 @@ class UpdateExts:
         self.exts_orig = eb.exts_list
         self.interpolate = {'name': eb.name, 'namelower': eb.name.lower(),
                             'version': eb.version}
+        self.name = eb.name
+        self.version = eb.version
         self.dep_exts_list = [sub_list[0] for sub_list in self.dep_exts]
 
     def processed(self, pkg):
@@ -90,29 +94,29 @@ class UpdateExts:
         if self.is_processed(pkg):
             return
         status = self.get_package_info(pkg)
-        logging.debug('check_package: %s pkg data: %s', pkg['name'], pkg)
         if status in ["error", 'not found']:
             if pkg['from'] is None:
                 pkg['action'] = 'keep'
                 self.processed(pkg)
                 return
             else:
-                print(f" Warning: {pkg['name']} is dependency from {pkg['from']}, but can't be found!")
+                logging.warning(" Warning: %s is dependency from %s, but can't be found!",
+                                pkg['name'], pkg['from'])
                 return
 
         if pkg['from']:
-           pkg['action'] = 'add'
-           self.pkg_new += 1
-           self.ext_counter += 1
+            pkg['action'] = 'add'
+            self.pkg_new += 1
+            self.ext_counter += 1
         else:
-            if pkg['orig_version']:
+            if pkg['orig_version'] is None:
+                pkg['action'] = 'keep'
+            else:
                 pkg['action'] = 'update'
                 self.pkg_updated += 1
                 if len(pkg) == 3:
                     if 'checksums' in pkg[2]:
-                        del pkd[2]['checksums']
-            else:
-                pkg['action'] = 'keep'
+                        del pkg[2]['checksums']
         if 'requires' in pkg['meta'] and pkg['meta']['requires'] is not None:
             self.checking.append(pkg['name'])
             logging.debug('%s: requires: %s', pkg['name'], pkg['meta']['requires'])
@@ -127,10 +131,40 @@ class UpdateExts:
         if self.verbose:
             self.print_status(pkg)
 
+    def is_processed(self, pkg):
+        """ 
+        check if package has been previously processed
+        if package exists AND is in the original exts_lists Mark as 'duplicate'
+        if package exists AND is in the exts_processed list Mark as 'processed'
+        """
+        action = None
+        name = pkg['name']
+        normalized_name = self.normalize_name(name)
+        if name in self.dep_exts_list:
+            action = 'duplicate'
+        elif normalized_name in self.exts_processed or (normalized_name in self.exts_processed_normalized):
+            action = 'processed'
+
+        if not action and name in self.checking:
+            action = 'reordered'
+            self.pkg_reordered += 1
+        if action:
+            if pkg['from'] is None:
+                pkg['action'] = action
+                self.pkg_duplicate += 1
+                self.ext_counter -= 1
+                pkg['action'] = action
+                if self.verbose:
+                    self.print_status(pkg)
+            return True
+        else:
+            return False
+
     def updateexts(self):
         """Loop through exts_list and check which packages need to be updated.
         this is an external method for the class
         """
+        print(f"== Updating {self.language} extensions for {self.name} {self.version}")
         self.ext_list_len = len(self.exts_orig)
         for ext in self.exts_orig:
             self.ext_counter += 1
@@ -147,10 +181,10 @@ class UpdateExts:
                 pkg['meta'] = {}
                 self.check_package(pkg)
             else:
-                pkg = {'name': ext, 'from': 'base'}
+                pkg = {'name': ext, 'from': 'base', 'action': 'keep'}
             if self.language == 'Python':
                 self.check_download_filename(pkg)
-            if pkg['action'] in ['processed', 'duplicate']:
+            if pkg['action'] in ['processed', 'duplicate', 'reordered']:
                 self.processed(pkg)
 
         if self.verbose:
@@ -171,4 +205,5 @@ class UpdateExts:
         print(f"== Updated Packages: {self.pkg_updated}")
         print(f"== New Packages: {self.pkg_new}")
         print(f"== Dropped Packages: {self.pkg_duplicate}")
+        print(f"== Reordered Packages: {self.pkg_reordered}")
         print(f"== Total Packages: {self.ext_list_len}")

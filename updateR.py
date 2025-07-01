@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-import re
 import sys
 import requests
 import logging
 from updateexts import UpdateExts
 from annotate import Annotate
-from Bioconductor_packages import Bioconductor_packages
-from pprint import pprint
+from bioconductor_packages import Bioconductor_packages
+
+logger = logging.getLogger()
 
 __version__ = '2.2.3'
 __date__ = 'March 11, 2025'
@@ -21,10 +21,6 @@ easyconfig files. Automates the updating of version information for R,
 
 """
 
-logging.basicConfig(format='%(levelname)s [%(filename)s:%(lineno)-4d] %(message)s',
-                    level=logging.WARN)
-# logging.getLogger().setLevel(logging.DEBUG)
-
 
 class UpdateR(UpdateExts, Annotate):
     """extend UpdateExts class to update package names from CRAN and Biocondutor
@@ -33,16 +29,14 @@ class UpdateR(UpdateExts, Annotate):
         self.verbose = verbose
         self.dotGraph = {}
         self.name = eb.name
+        self.exts_processed_normalized = []  # only used for Python packages
         self.depend_exclude = ['R', 'base', 'compiler', 'datasets', 'graphics',
                                'grDevices', 'grid', 'methods', 'parallel',
                                'splines', 'stats', 'stats4', 'tcltk', 'tools',
                                'utils', ]
         self.dep_types = ['Depends', 'Imports', 'LinkingTo']
 
-        if eb.biocver:
-            self.bioc = Bioconductor_packages(eb.biocver)
-        else:
-            print('WARNING: BioCondutor local_biocver is not defined. Bioconductor will not be searched')
+        self.bioc = Bioconductor_packages(eb.biocver, verbose)
         if operation == 'search_cran':
             pass
             #  display_cran_meta(argument)
@@ -57,9 +51,7 @@ class UpdateR(UpdateExts, Annotate):
         elif operation == 'update':
             UpdateExts.__init__(self, verbose, eb)
             self.updateexts()
-            #   for pkg in self.exts_processed:
-            #       print(f"    ('{pkg['name']}', '{pkg['version']}'),")
-            #   print(f"Total packages: {self.ext_counter}")
+            print(f"Total packages: {self.ext_counter}")
             eb.print_update('R', self.exts_processed)
 
     def get_cran_package(self, pkg):
@@ -68,7 +60,7 @@ class UpdateR(UpdateExts, Annotate):
         """
         cran_list = "http://crandb.r-pkg.org/"
         resp = requests.get(url=cran_list + pkg['name'])
-        if resp.status_code != 200:
+        if 200 < resp.status_code or resp.status_code >= 300:
             return "not found"
         cran_info = resp.json()
         pkg['info'] = cran_info
@@ -77,7 +69,6 @@ class UpdateR(UpdateExts, Annotate):
             pkg['version'] = cran_info['Version']
         else:
             pkg['orig_version'] = None
-            
         if u'License' in cran_info and u'Part of R' in cran_info[u'License']:
             return 'base package'
         if 'URL' in cran_info:
@@ -122,33 +113,9 @@ class UpdateR(UpdateExts, Annotate):
             self.print_depends(pkg)
         return status
 
-    def is_processed(self, pkg):
-        """ check if package has been previously processed
-            if package exists AND is in the original exts_lists
-                Mark as 'duplicate'
-        updated July 2018
-        """
-        action = None
-        name = pkg['name']
-        if name in self.dep_exts_list:
-            action = 'duplicate'
-        else:
-            for p_pkg in self.exts_processed:
-                if name == p_pkg['name']:
-                    action = 'processed'
-                    break
-        if not action and name in self.checking:
-            action = 'duplicate-x'
-        if action:
-            if pkg['from'] is None:
-                self.pkg_duplicate += 1
-                self.ext_counter -= 1
-                pkg['action'] = action
-                if self.verbose:
-                    self.print_status(pkg)
-            return True
-        else:
-            return False
+    def normalize_name(self, name):
+        """ Normalize package is not required for R packages"""
+        return name
 
     def get_package_url(self, pkg):
         """ Return URL and Description from CRAN or Biocondutor """
@@ -160,13 +127,13 @@ class UpdateR(UpdateExts, Annotate):
             else:
                 print(f"Title {pkg} not found in Bioconductor")
                 return url, 'Description Not Found in Bioconductor'
-        
+
         status = self.get_cran_package(pkg)
         if status == 'ok':
             url = f"https://cran.r-project.org/web/packages/{pkg['name']}/index.html"
             if 'Title' in pkg:
                 return url, pkg['Title']
-            else:  
+            else:
                 return url, 'Description Not Found in CRAN'
         return 'not found', 'Package Not Found'
 

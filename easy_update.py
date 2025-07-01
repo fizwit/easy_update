@@ -51,10 +51,18 @@ def setup_parser():
 
 def process_arguments(args):
     """Handle the parsed command line arguments"""
+    global logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    FORMAT = '%(levelname)s %(filename)s %(funcName)s:%(lineno)d - %(message)s'
+    formatter = logging.Formatter(FORMAT)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
     if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-    if args.verbose:
-        logging.getLogger().setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
+    elif args.verbose:
+        logger.setLevel(logging.INFO)
     if not args.operation or not args.value:
         parser.error("A value must be provided for the selected operation")
         sys.exit(1)

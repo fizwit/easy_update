@@ -7,14 +7,17 @@ import logging
 import re
 from pathlib import Path
 from updateexts import UpdateExts
+from annotate import Annotate
 from packaging.requirements import Requirement
+
+logger = logging.getLogger()
 
 __version__ = '0.1.0'
 __date__ = '2025-03-16'
 __author__ = 'John Dey'
 
 
-class UpdatePython(UpdateExts):
+class UpdatePython(UpdateExts, Annotate):
     """
        extend ExtsList class to update package names from PyPI
        Python Issues
@@ -32,6 +35,8 @@ class UpdatePython(UpdateExts):
         self.exts_processed_normalized = []
         self.dotGraph = {}
         self.indent = "    "
+        self.exts_orig = []
+        self.dep_exts = []
         if operation == 'search_pypi':
             self.display_pypi_meta(easyconfig)
         elif operation == 'description':
@@ -40,17 +45,22 @@ class UpdatePython(UpdateExts):
         elif operation == 'dep_graph':
             print(f" == Python Descriptions")
             self.pypi_query(eb.exts_list, easyconfig)
+        elif operation == 'annotate':
+            print(f' == Annotate {eb.easyconfig}')
+            UpdateExts.__init__(self, verbose,             eb)
+            Annotate.__init__(self, easyconfig, verbose, self.exts_orig, self.dep_exts)
+            self.create_markdown()
         elif operation == 'update':
             (nums) = eb.pyver.split('.')
-            self.python_version = f"{nums[0]}.{nums[1]}"
-            self.env = {'python_version': self.python_version, 'extra': 'none'}
-            print(f"Python Version: {self.python_version}")
+            self.pyshortver = f"{nums[0]}.{nums[1]}"
+            self.env = {'python_version': self.pyshortver, 'extra': 'none'}
+            logging.debug("Python Version: %s" % self.pyshortver)
             UpdateExts.__init__(self, verbose, eb)
             # Python >3.3 has additional built in modules
             self.depend_exclude = ['argparse', 'asyncio', 'typing', 'sys'
                                    'functools32', 'enum34', 'future', 'configparser']
             self.updateexts()
-            eb.print_update('Python', self.exts_processed)
+            eb.print_update(eb.language, self.exts_processed)
 
     def display_pypi_meta(self, pypi_project_name):
         """ display metadata from PyPi
@@ -74,10 +84,12 @@ class UpdatePython(UpdateExts):
         """
         req = f"https://pypi.org/pypi/{pkg['name']}/json"
         resp = requests.get(req)
-        if resp.status_code != 200:
+        logging.debug('get_pypi_project: request: %s responce: %s', req, resp.status_code)
+        if 200 <= resp.status_code < 300:
+            return resp.json()
+        else:
+            logging.error('API error: %s GET project %s', resp.status_code, pkg['name'])
             return 'not found'
-        project = resp.json()
-        return project
 
     def get_pypi_pkg_data(self, pkg, version=None):
         """
@@ -85,9 +97,8 @@ class UpdatePython(UpdateExts):
         """
         req = 'https://pypi.org/pypi/%s/%s/json' % (pkg['name'], version)
         resp = requests.get(req)
-        if resp.status_code != 200:
-            msg = "API error: %s GET release %s"
-            logging.error(msg, resp.status_code, pkg['name'])
+        if 200 < resp.status_code or resp.status_code >= 300:
+            logging.error("API error: %s GET release %s", resp.status_code, pkg['name'])
             return 'not found'
         project = resp.json()
         # verify that Project name is correct
@@ -193,7 +204,7 @@ class UpdatePython(UpdateExts):
         source_targz = f"{name}-{version}.tar.gz"
         if source_targz == filename:
             return   # no need to check further
-        
+
         if '-' in pkg['name']:
             dash_targz = f"{name.replace('-', '_')}-{version}.tar.gz"
             if dash_targz == filename:
@@ -224,6 +235,8 @@ class UpdatePython(UpdateExts):
         """
         project = self.get_pypi_project(pkg)
         self.project = project
+        logging.debug('get_package_info: version: %s project: %s', pkg['version'], project)
+
         if self.project == 'not found':
             return 'not found'
         pkg['meta'].update(project['info'])
@@ -239,12 +252,16 @@ class UpdatePython(UpdateExts):
         if 'classiferiers' in project['info']:
             if 'win' in pkg['meta']['classifiers'].lower():
                 print(f"WARNING: {pkg['name']} is win32.  Classifiers: {pkg['meta']['classifiers']}")
+        if 'summary' in project['info'] or 'Summary' in project['info']:
+            pkg['meta']['description'] = project['info']['summary']
+        else:
+            logging.error("pkg: %s no Pypi info: %s", pkg['name'], project['info'])
         if project['info']['version'] != pkg['version']:
             pkg['orig_version'] = pkg['version']
             pkg['version'] = project['info']['version']
         else:
             pkg['orig_version'] = None
-        return status
+        return 'ok'
 
     def processed(self, pkg):
         """ Python version - add package to exts_processed list 
@@ -255,7 +272,7 @@ class UpdatePython(UpdateExts):
         if pkg['action'] == 'add':
             self.ext_counter += 1
         self.exts_processed.append(dup_pkg)
-        normalized_name = normalize_name(dup_pkg['name'])
+        normalized_name = self.normalize_name(dup_pkg['name'])
         if normalized_name != dup_pkg['name']:
             self.exts_processed_normalized.append(normalized_name)
         else:
@@ -263,33 +280,16 @@ class UpdatePython(UpdateExts):
         if 'spec' in pkg and 'modulename' in pkg['spec']:
             self.exts_processed_normalized.append(pkg['spec']['modulename'])
 
-    def is_processed(self, pkg):
-        """ 
-        check if package has been previously processed
-        if package exists AND is in the original exts_lists Mark as 'duplicate'
-        if package exists AND is in the exts_processed list Mark as 'processed'
-        """
-        action = None
-        name = pkg['name']
-        normalized_name = normalize_name(name)
-        if name in self.dep_exts_list:
-            action = 'duplicate'
-        elif normalized_name in self.exts_processed_normalized:
-            action = 'processed'
 
-        if not action and name in self.checking:
-            action = 'duplicate-x'
-        if action:
-            if pkg['from'] is None:
-                pkg['action'] = action
-                self.pkg_duplicate += 1
-                self.ext_counter -= 1
-                pkg['action'] = action
-                if self.verbose:
-                    self.print_status(pkg)
-            return True
-        else:
-            return False
+
+    def get_package_url(self, pkg):
+        """ Return URL and Description from PyPi """
+        project = self.get_pypi_project(pkg)
+        if project == 'not found':
+            return "", "Project Summary not found"
+
+        project = self.get_pypi_pkg_data({'name': project['info']['name']}, project['info']['version'])
+        return project['info']['url'], project['info']['summary']
 
     def output_module(self, pkg):
         """Python version
@@ -299,7 +299,7 @@ class UpdatePython(UpdateExts):
         if 'spec' in pkg:
             output = f"('{pkg['name']}', '{pkg['version']}"
             for item in pkg['spec'].keys():
-                output += f"{space:8}('{item}', '{pkg['spec'][item]}', {{" 
+                output += f"{space:8}('{item}', '{pkg['spec'][item]}', {{"
             output += f"{space:4}}}),"
         else:
             output = f"{space:4}('{pkg['name']}', '{pkg['version']}'),"
@@ -349,11 +349,11 @@ class UpdatePython(UpdateExts):
                 print(f"{pkg[0]} - missing Dictionary")
 
 
-def normalize_name(name):
-    """Normalize a package name. PEP508 specifies that package names are case-insensitive,
-    and that they should be normalized to lowercase.
-    """
-    return re.sub(r"[-_.]+", "-", name).lower()
+    def normalize_name(self, name):
+        """Normalize a package name. PEP508 specifies that package names are case-insensitive,
+        and that they should be normalized to lowercase.
+        """
+        return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def add_to_python_dep_exts(dep_eb, easyconfig, dep_exts):
@@ -372,19 +372,19 @@ def add_to_python_dep_exts(dep_eb, easyconfig, dep_exts):
 
     if easyblock in ['PythonPackage', 'PythonBundle', 'Python']:
         dep_exts.append([dep_eb.name, dep_eb.version, {'module': easyconfig}])
-        easyconfig_name = normalize_name(dep_eb.name)
+        easyconfig_name = self.normalize_name(dep_eb.name)
         if easyconfig_name != dep_eb.name:
             dep_exts.append([easyconfig_name, dep_eb.version, {'module': easyconfig}])
         if 'options' in dep_eb.__dict__ and 'modulename' in dep_eb.options:
             modulename = dep_eb.options['modulename']
-            normalized_moudlename = normalize_name(modulename)
+            normalized_moudlename = self.normalize_name(modulename)
             if modulename != normalized_moudlename:
                 dep_exts.append([normalized_moudlename, dep_eb.version, {'module': easyconfig}])
             else:
                 dep_exts.append([modulename, dep_eb.version, {'module': easyconfig}])
         if 'exts_list' in dep_eb.__dict__:
             for ext in dep_eb.exts_list:
-                normalized_name = normalize_name(ext[0])
+                normalized_name = self.normalize_name(ext[0])
                 if normalized_name not in dep_exts:
                     dep_exts.append([normalized_name, ext[1]])
                     if len(ext) > 2 and 'module' in ext[2]:
